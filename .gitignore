@@ -1,0 +1,22 @@
+# Entorno local
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Runtime pesado: vive en C:\lab03, fuera del repo
+datos/
+checkpoints/
+.ivy2/
+kafka/
+kafka.tgz
+resultados/parquet/
+resultados/sqlite/
+
+# Evidencias regenerables con run_all.ps1
+evidencias/logs/
+
+# Sistema
+Thumbs.db
+.DS_Store
+desktop.ini
