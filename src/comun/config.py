@@ -65,6 +65,10 @@ EVIDENCIAS = RAIZ / "evidencias"
 # Los logs van a su propia carpeta para distinguirlos del código de un vistazo
 LOGS = EVIDENCIAS / "logs"
 
+# Los gráficos también van en las evidencias, porque son parte de lo que se entrega y un
+# PNG suelto en la raíz se pierde entre el código
+GRAFICOS = EVIDENCIAS / "graficos"
+
 # La dirección del broker de Kafka, y el nombre es corto a propósito para no alargar más la ruta
 KAFKA_HOME = RAIZ / "kafka"
 
@@ -122,3 +126,5 @@ def asegurar_carpetas() -> None:
     LOGS.mkdir(parents=True, exist_ok=True)
     (EVIDENCIAS / "pantallazos").mkdir(parents=True, exist_ok=True)
     (EVIDENCIAS / "entorno").mkdir(parents=True, exist_ok=True)
+    GRAFICOS.mkdir(parents=True, exist_ok=True)
+    (EVIDENCIAS / "explain").mkdir(parents=True, exist_ok=True)

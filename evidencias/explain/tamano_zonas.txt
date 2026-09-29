@@ -1,0 +1,23 @@
+# Tamano de cada zona del lago, bytes y lecturas
+# Generado: 2026-09-29 01:37:34
+# Snapshot: aire_horario_2026-09-22_2026-09-28.json
+# El detalle de gold se agrega porque las 35 filas del total son la suma de
+# cuatro salidas con propositos distintos y desagregadas se entienden.
+
+Zona          Lecturas   Archivos       Bytes   Bytes por lectura
+--------------------------------------------------------------------------
+raw snapshot       672          1     47,897                 71
+raw sucio          672          1     52,710                 78
+bronze             696          2     14,844                 21
+silver             586         32    117,919                201
+gold                35          4      9,531                272
+
+Detalle de la zona gold
+Tabla                        Filas     Bytes
+--------------------------------------------------------------------------
+episodios                        23     2,989
+episodios_resumen                 2     1,996
+horas_sobre_umbral                4     2,103
+medias_por_ciudad                 6     2,443
+--------------------------------------------------------------------------
+Total                            35     9,531

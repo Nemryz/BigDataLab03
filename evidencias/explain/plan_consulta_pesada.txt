@@ -1,0 +1,79 @@
+# Plan de ejecucion de la consulta mas pesada del proyecto
+# Consulta: episodios
+# Generado: 2026-09-29 01:37:34
+# Spark: 3.5.9
+
+== Parsed Logical Plan ==
+CTE [horas_malas, cortadas, numerados]
+:  :- 'SubqueryAlias horas_malas
+:  :  +- 'Project ['ciudad, 'hora_utc, 'pm2_5, 'ROW_NUMBER() windowspecdefinition('ciudad, 'hora_utc ASC NULLS FIRST, unspecifiedframe$()) AS posicion#270, 'LAG('hora_utc) windowspecdefinition('ciudad, 'hora_utc ASC NULLS FIRST, unspecifiedframe$()) AS hora_anterior#271]
+:  :     +- 'Filter ('es_episodio = 1)
+:  :        +- 'UnresolvedRelation [lecturas], [], false
+:  :- 'SubqueryAlias cortadas
+:  :  +- 'Project ['ciudad, 'hora_utc, 'pm2_5, 'posicion, CASE WHEN isnull('hora_anterior) THEN 1 WHEN (('UNIX_TIMESTAMP('hora_utc) - 'UNIX_TIMESTAMP('hora_anterior)) = 3600) THEN 0 ELSE 1 END AS arranca_episodio#272]
+:  :     +- 'UnresolvedRelation [horas_malas], [], false
+:  +- 'SubqueryAlias numerados
+:     +- 'Project ['ciudad, 'hora_utc, 'pm2_5, 'posicion, 'SUM('arranca_episodio) windowspecdefinition('ciudad, 'posicion ASC NULLS FIRST, specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$())) AS numero_episodio#273]
+:        +- 'UnresolvedRelation [cortadas], [], false
++- 'Sort ['ciudad ASC NULLS FIRST, 'inicio ASC NULLS FIRST], true
+   +- 'Aggregate ['ciudad, 'numero_episodio], ['ciudad, 'numero_episodio, 'COUNT(1) AS duracion_horas#265, 'MIN('hora_utc) AS inicio#266, 'MAX('hora_utc) AS fin#267, 'ROUND('AVG('pm2_5), 2) AS pm25_promedio#268, 'ROUND('MAX('pm2_5), 2) AS pm25_pico#269]
+      +- 'UnresolvedRelation [numerados], [], false
+
+== Analyzed Logical Plan ==
+ciudad: string, numero_episodio: bigint, duracion_horas: bigint, inicio: timestamp, fin: timestamp, pm25_promedio: double, pm25_pico: double
+WithCTE
+:- CTERelationDef 0, false
+:  +- SubqueryAlias horas_malas
+:     +- Project [ciudad#251, hora_utc#242, pm2_5#244, posicion#270, hora_anterior#271]
+:        +- Project [ciudad#251, hora_utc#242, pm2_5#244, posicion#270, hora_anterior#271, posicion#270, hora_anterior#271]
+:           +- Window [row_number() windowspecdefinition(ciudad#251, hora_utc#242 ASC NULLS FIRST, specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$())) AS posicion#270, lag(hora_utc#242, -1, null) windowspecdefinition(ciudad#251, hora_utc#242 ASC NULLS FIRST, specifiedwindowframe(RowFrame, -1, -1)) AS hora_anterior#271], [ciudad#251], [hora_utc#242 ASC NULLS FIRST]
+:              +- Project [ciudad#251, hora_utc#242, pm2_5#244]
+:                 +- Filter (es_episodio#247 = 1)
+:                    +- SubqueryAlias lecturas
+:                       +- View (`lecturas`, [hora#241,hora_utc#242,hora_del_dia#243,pm2_5#244,pm10#245,nitrogen_dioxide#246,es_episodio#247,exceso#248,latitud#249,longitud#250,ciudad#251,fecha#252])
+:                          +- Relation [hora#241,hora_utc#242,hora_del_dia#243,pm2_5#244,pm10#245,nitrogen_dioxide#246,es_episodio#247,exceso#248,latitud#249,longitud#250,ciudad#251,fecha#252] parquet
+:- CTERelationDef 1, false
+:  +- SubqueryAlias cortadas
+:     +- Project [ciudad#251, hora_utc#242, pm2_5#244, posicion#270, CASE WHEN isnull(hora_anterior#271) THEN 1 WHEN ((unix_timestamp(hora_utc#242, yyyy-MM-dd HH:mm:ss, Some(America/Santiago), false) - unix_timestamp(hora_anterior#271, yyyy-MM-dd HH:mm:ss, Some(America/Santiago), false)) = cast(3600 as bigint)) THEN 0 ELSE 1 END AS arranca_episodio#272]
+:        +- SubqueryAlias horas_malas
+:           +- CTERelationRef 0, true, [ciudad#251, hora_utc#242, pm2_5#244, posicion#270, hora_anterior#271], false
+:- CTERelationDef 2, false
+:  +- SubqueryAlias numerados
+:     +- Project [ciudad#251, hora_utc#242, pm2_5#244, posicion#270, numero_episodio#273L]
+:        +- Project [ciudad#251, hora_utc#242, pm2_5#244, posicion#270, arranca_episodio#272, numero_episodio#273L, numero_episodio#273L]
+:           +- Window [sum(arranca_episodio#272) windowspecdefinition(ciudad#251, posicion#270 ASC NULLS FIRST, specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$())) AS numero_episodio#273L], [ciudad#251], [posicion#270 ASC NULLS FIRST]
+:              +- Project [ciudad#251, hora_utc#242, pm2_5#244, posicion#270, arranca_episodio#272]
+:                 +- SubqueryAlias cortadas
+:                    +- CTERelationRef 1, true, [ciudad#251, hora_utc#242, pm2_5#244, posicion#270, arranca_episodio#272], false
++- Sort [ciudad#251 ASC NULLS FIRST, inicio#266 ASC NULLS FIRST], true
+   +- Aggregate [ciudad#251, numero_episodio#273L], [ciudad#251, numero_episodio#273L, count(1) AS duracion_horas#265L, min(hora_utc#242) AS inicio#266, max(hora_utc#242) AS fin#267, round(avg(pm2_5#244), 2) AS pm25_promedio#268, round(max(pm2_5#244), 2) AS pm25_pico#269]
+      +- SubqueryAlias numerados
+         +- CTERelationRef 2, true, [ciudad#251, hora_utc#242, pm2_5#244, posicion#270, numero_episodio#273L], false
+
+== Optimized Logical Plan ==
+Sort [ciudad#251 ASC NULLS FIRST, inicio#266 ASC NULLS FIRST], true
++- Aggregate [ciudad#251, numero_episodio#273L], [ciudad#251, numero_episodio#273L, count(1) AS duracion_horas#265L, min(hora_utc#242) AS inicio#266, max(hora_utc#242) AS fin#267, round(avg(pm2_5#244), 2) AS pm25_promedio#268, round(max(pm2_5#244), 2) AS pm25_pico#269]
+   +- Project [ciudad#251, hora_utc#242, pm2_5#244, numero_episodio#273L]
+      +- Window [sum(arranca_episodio#272) windowspecdefinition(ciudad#251, posicion#270 ASC NULLS FIRST, specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$())) AS numero_episodio#273L], [ciudad#251], [posicion#270 ASC NULLS FIRST]
+         +- Project [ciudad#251, hora_utc#242, pm2_5#244, posicion#270, CASE WHEN isnull(hora_anterior#271) THEN 1 WHEN ((unix_timestamp(hora_utc#242, yyyy-MM-dd HH:mm:ss, Some(America/Santiago), false) - unix_timestamp(hora_anterior#271, yyyy-MM-dd HH:mm:ss, Some(America/Santiago), false)) = 3600) THEN 0 ELSE 1 END AS arranca_episodio#272]
+            +- Window [row_number() windowspecdefinition(ciudad#251, hora_utc#242 ASC NULLS FIRST, specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$())) AS posicion#270, lag(hora_utc#242, -1, null) windowspecdefinition(ciudad#251, hora_utc#242 ASC NULLS FIRST, specifiedwindowframe(RowFrame, -1, -1)) AS hora_anterior#271], [ciudad#251], [hora_utc#242 ASC NULLS FIRST]
+               +- Project [ciudad#251, hora_utc#242, pm2_5#244]
+                  +- Filter (isnotnull(es_episodio#247) AND (es_episodio#247 = 1))
+                     +- Relation [hora#241,hora_utc#242,hora_del_dia#243,pm2_5#244,pm10#245,nitrogen_dioxide#246,es_episodio#247,exceso#248,latitud#249,longitud#250,ciudad#251,fecha#252] parquet
+
+== Physical Plan ==
+AdaptiveSparkPlan isFinalPlan=false
++- Sort [ciudad#251 ASC NULLS FIRST, inicio#266 ASC NULLS FIRST], true, 0
+   +- Exchange rangepartitioning(ciudad#251 ASC NULLS FIRST, inicio#266 ASC NULLS FIRST, 4), ENSURE_REQUIREMENTS, [plan_id=340]
+      +- HashAggregate(keys=[ciudad#251, numero_episodio#273L], functions=[count(1), min(hora_utc#242), max(hora_utc#242), avg(pm2_5#244), max(pm2_5#244)], output=[ciudad#251, numero_episodio#273L, duracion_horas#265L, inicio#266, fin#267, pm25_promedio#268, pm25_pico#269])
+         +- HashAggregate(keys=[ciudad#251, numero_episodio#273L], functions=[partial_count(1), partial_min(hora_utc#242), partial_max(hora_utc#242), partial_avg(pm2_5#244), partial_max(pm2_5#244)], output=[ciudad#251, numero_episodio#273L, count#294L, min#295, max#296, sum#297, count#298L, max#299])
+            +- Project [ciudad#251, hora_utc#242, pm2_5#244, numero_episodio#273L]
+               +- Window [sum(arranca_episodio#272) windowspecdefinition(ciudad#251, posicion#270 ASC NULLS FIRST, specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$())) AS numero_episodio#273L], [ciudad#251], [posicion#270 ASC NULLS FIRST]
+                  +- Sort [ciudad#251 ASC NULLS FIRST, posicion#270 ASC NULLS FIRST], false, 0
+                     +- Project [ciudad#251, hora_utc#242, pm2_5#244, posicion#270, CASE WHEN isnull(hora_anterior#271) THEN 1 WHEN ((unix_timestamp(hora_utc#242, yyyy-MM-dd HH:mm:ss, Some(America/Santiago), false) - unix_timestamp(hora_anterior#271, yyyy-MM-dd HH:mm:ss, Some(America/Santiago), false)) = 3600) THEN 0 ELSE 1 END AS arranca_episodio#272]
+                        +- Window [row_number() windowspecdefinition(ciudad#251, hora_utc#242 ASC NULLS FIRST, specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$())) AS posicion#270, lag(hora_utc#242, -1, null) windowspecdefinition(ciudad#251, hora_utc#242 ASC NULLS FIRST, specifiedwindowframe(RowFrame, -1, -1)) AS hora_anterior#271], [ciudad#251], [hora_utc#242 ASC NULLS FIRST]
+                           +- Sort [ciudad#251 ASC NULLS FIRST, hora_utc#242 ASC NULLS FIRST], false, 0
+                              +- Exchange hashpartitioning(ciudad#251, 4), ENSURE_REQUIREMENTS, [plan_id=329]
+                                 +- Project [ciudad#251, hora_utc#242, pm2_5#244]
+                                    +- Filter (isnotnull(es_episodio#247) AND (es_episodio#247 = 1))
+                                       +- FileScan parquet [hora_utc#242,pm2_5#244,es_episodio#247,ciudad#251,fecha#252] Batched: true, DataFilters: [isnotnull(es_episodio#247), (es_episodio#247 = 1)], Format: Parquet, Location: InMemoryFileIndex(1 paths)[file:/C:/BigDataLab03/datos/silver/lecturas_limpias], PartitionFilters: [], PushedFilters: [IsNotNull(es_episodio), EqualTo(es_episodio,1)], ReadSchema: struct<hora_utc:timestamp,pm2_5:double,es_episodio:int>

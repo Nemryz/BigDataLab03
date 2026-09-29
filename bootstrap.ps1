@@ -130,6 +130,13 @@ if (Test-Path (Join-Path $repo "kafka")) {
     }
     Rename-Item (Join-Path $repo "kafka_2.13-4.1.2") "kafka"
     Remove-Item (Join-Path $repo "kafka.tgz") -Force
+    # La configuración que trae Kafka apunta a /tmp, que es una ruta de Linux y en Windows
+    # deja los datos del broker en la raiz del disco. La dejamos en una carpeta del proyecto
+    $config = Join-Path $repo "kafka\config\server.properties"
+    if (Test-Path $config) {
+        (Get-Content $config -Raw) -replace 'log\.dirs=.*', "log.dirs=$($repo.Replace('\', '/'))/kafka/kraft-logs" |
+            Set-Content -Path $config -Encoding ASCII
+    }
     escribir "  instalado en la carpeta kafka"
 }
 escribir ""
