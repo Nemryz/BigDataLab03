@@ -1,0 +1,66 @@
+Proyecto        BigDataLab03
+Capturado UTC   2026-09-29T02-43-59Z
+Repositorio     C:\BigDataLab03
+
+--- Git ---
+commit  00263d9
+rama    main
+archivos con cambios  3
+
+--- Java ---
+JAVA_HOME  C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot
+version usada por el proyecto
+openjdk version "17.0.20.1" 2026-08-18
+OpenJDK Runtime Environment Temurin-17.0.20.1+1 (build 17.0.20.1+1)
+OpenJDK 64-Bit Server VM Temurin-17.0.20.1+1 (build 17.0.20.1+1, mixed mode, sharing)
+java del PATH del sistema
+java version "20.0.2" 2023-07-18
+Java(TM) SE Runtime Environment (build 20.0.2+9-78)
+Java HotSpot(TM) 64-Bit Server VM (build 20.0.2+9-78, mixed mode, sharing)
+
+--- Python ---
+interprete  C:\BigDataLab03\.venv\Scripts\python.exe
+Python 3.12.10
+
+--- Librerias ---
+pyspark      3.5.9
+pandas       2.3.3
+numpy        2.5.3
+pyarrow      25.0.1
+py4j         0.10.9.9
+setuptools   84.0.0
+matplotlib   3.11.2
+
+--- Winutils ---
+winutils.exe  110 KB
+hadoop.dll  83 KB
+winutils.dll  83 KB
+
+--- Kafka ---
+instalado en la carpeta del proyecto
+
+--- Maquina ---
+sistema  Microsoft Windows 11 Home Single Language
+memoria  7.7 GB
+procesadores  12 logicos
+disco libre  57.2 GB
+
+--- Paquetes instalados ---
+contourpy==1.4.0
+cycler==0.12.1
+fonttools==4.66.0
+kiwisolver==1.5.1
+matplotlib==3.11.2
+numpy==2.5.3
+packaging==26.3
+pandas==2.3.3
+pillow==12.3.0
+py4j==0.10.9.9
+pyarrow==25.0.1
+pyparsing==3.3.3
+pyspark==3.5.9
+python-dateutil==2.9.0.post0
+pytz==2026.4
+setuptools==84.0.0
+six==1.17.0
+tzdata==2026.4

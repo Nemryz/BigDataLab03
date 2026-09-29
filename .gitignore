@@ -23,6 +23,10 @@ kafka.tgz
 # Evidencias regenerables con run_all.ps1
 evidencias/logs/
 
+# Las capturas con fecha del entorno se acumulan en cada corrida, versionamos solo la
+# actual que genera 00_capturar_entorno.ps1
+evidencias/entorno/*-*.txt
+
 # Sistema
 Thumbs.db
 .DS_Store

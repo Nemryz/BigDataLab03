@@ -30,18 +30,18 @@ Las carpetas de cada rama llevan un número al principio, y ese número es el or
 
 | Carpeta | Ramas | Contenido |
 | --------- | ------- | ----------- |
-| `01-generacion` | lakehouse | el script que fabrica el dataset con semilla fija |
-| `01-ingesta` | lakehouse, lambda, kappa | el generador o el productor que alimenta el sistema |
-| `02-ingesta` | lakehouse | la lectura de la zona cruda |
-| `02-velocidad` | lambda | la capa de baja latencia |
-| `03-lotes` | lambda | la capa por lotes |
-| `03-transformacion` | lakehouse | limpieza y Parquet particionado |
-| `04-consultas` | lakehouse | SQL analítico |
-| `05-visualizacion` | lakehouse | gráficos con matplotlib |
-| `04-servicio` | lambda | la capa SQLite que une las dos vías |
-| `02-procesamiento` | kappa | ventanas de tumbling, sliding y sesión |
-| `03-reprocesamiento` | kappa | replay del historial con lógica cambiada |
-| `salidas\` | todas | resultados de la rama |
+| '01-generacion' | lakehouse | el script que fabrica el dataset con semilla fija |
+| '01-ingesta' | lakehouse, lambda, kappa | el generador o el productor que alimenta el sistema |
+| '02-ingesta' | lakehouse | la lectura de la zona cruda |
+| '02-velocidad' | lambda | la capa de baja latencia |
+| '03-lotes' | lambda | la capa por lotes |
+| '03-transformacion' | lakehouse | limpieza y Parquet particionado |
+| '04-consultas' | lakehouse | SQL analítico |
+| '05-visualizacion' | lakehouse | gráficos con matplotlib |
+| '04-servicio' | lambda | la capa SQLite que une las dos vías |
+| '02-procesamiento' | kappa | ventanas de tumbling, sliding y sesión |
+| '03-reprocesamiento' | kappa | replay del historial con lógica cambiada |
+| 'salidas\' | todas | resultados de la rama |
 
 ## Requisitos
 
@@ -185,13 +185,70 @@ Al final del log vas a ver unas líneas que dicen 'CORRECTO: el proceso con PID.
 
 Cada script del proyecto imprime al comienzo un encabezado con la fecha, el commit de git, el comando exacto y las versiones, y eso lo hace el módulo 'evidencia.py'. La idea es que un log suelto en 'evidencias\logs' sirva como prueba sin que haga falta un párrafo al lado que lo explique. Para guardar la salida de cualquier script, se usa siempre el mismo comando del paso 5, cambiando la ruta del script y la del log.
 
+## El flujo completo, en tres pasos
+
+Estos son los tres comandos, en este orden. Nada más hay que hacer.
+
+```powershell
+git clone https://github.com/Nemryz/BigDataLab03.git C:\BigDataLab03
+cd C:\BigDataLab03
+.\bootstrap.ps1
+.\lab03.bat
+```
+
+El primero baja el código, el segundo instala las herramientas y el tercero corre la
+prueba de humo. El paso dos se hace una sola vez por máquina. El paso tres se puede
+repetir cuantas veces quieras, y también se puede abrir con doble clic.
+
+## Datos reales, descargados una vez
+
+Para las tres ramas usamos datos reales de calidad del aire en cuatro ciudades, Santiago,
+Mendoza, Valparaíso y Puerto Montt. La descarga la hace un solo script, y después de eso
+el pipeline nunca más toca la red.
+
+```powershell
+& $py ".\data-lakehouse\01-generacion\descargar.py" aire_horario
+```
+
+Sin argumentos te muestra el catálogo de las tres fuentes disponibles. El script deja el
+archivo en 'datos\raw\' y al lado un manifiesto con la dirección usada, la fecha y el hash.
+
+La regla de por qué la red se toca una sola vez es la más importante del proyecto. Si el
+pipeline llamara a la API en cada corrida, cada una traería datos distintos, el hash de
+reproducibilidad no cuadraría nunca y un corte de internet el día de la defensa nos dejaría
+sin demostración. Con la foto en disco, la red pasa a ser un paso opcional y el pipeline
+queda siempre igual. Eso además nos permite comparar las tres arquitecturas sobre el
+mismo problema, que es lo que le da sentido a la tabla comparativa.
+
+## Windows te bloquea un archivo
+
+Si al abrir 'lab03.bat' Windows te dice que está bloqueado o te sale el aviso del
+Escudo de Windows, no es un virus. Es la marca que Windows le pone a los archivos que
+vienen de afuera, que se llama Mark of the Web, y lo hace porque no conoce el archivo.
+Un archivo que viene de 'git clone' no debería tener esa marca, pero si lo bajaste con el
+navegador o lo copiaste de un pen drive, la puede tener. Se quita con esta línea, que
+solo le saca la marca y no toca nada más:
+
+```powershell
+Get-ChildItem -Recurse -Include *.bat, *.ps1 | Unblock-File
+```
+
+Lo que **no** vamos a hacer, y conviene decirlo porque es tentador, es desactivar
+Windows Defender o agregar excepciones. No hace falta y no corresponde. El 'lab03.bat'
+está escrito justamente para que no haya nada que señalar: no descarga nada, no tiene
+código empaquetado, no usa llamadas reflejadas y nunca baja un archivo y lo ejecuta en
+el mismo paso. Solo mira si las piezas están y, si están, corre las que ya están
+escritas.
+
 ## Reproducir el entorno desde cero
 
 ```powershell
 .\bootstrap.ps1
 ```
 
-Recrea la venv e instala las versiones pineadas de 'requisitos.txt'.
+Recrea la venv e instala las versiones pineadas de 'requisitos.txt'. Es idempotente, se
+puede correr las veces que haga falta porque antes de cada paso pregunta si la cosa ya
+está hecha.
 
 ## Ejecutar el pipeline completo
 
@@ -217,6 +274,7 @@ Ejecuta el pipeline dos veces y compara los hashes SHA-256 de las salidas.
 | 'docs/veredicto_arquitecturas.md' | Decisión del equipo |
 | 'docs/guion_presentacion.md' | Presentación y tiempo (20 pts) |
 | 'evidencias/bitacora.md' | Evidencia del proceso |
+| 'evidencias/entorno/entorno.txt' | Huella del entorno, la genera '00_capturar_entorno.ps1' |
 
 ## Problemas que encontramos y cómo se resolvieron
 
