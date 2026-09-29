@@ -1,41 +1,14 @@
-"""Configuración central del Laboratorio 03 de Big Data.
+"""Configuración central 
 
-Este archivo reúne las direcciones y los valores que consulta el resto del código, y hace
-las veces de ficha de contacto del proyecto, porque repetir el domicilio en cien lugares
-distintos termina haciendo que dos copias se desincronicen sin que nadie se entere. Para
-adaptar el proyecto alcanza con editar el valor de acá, ya que ninguna dirección está
-escrita a mano en otro archivo.
+Este archivo reúne las direcciones y los valores que consulta el resto del código, y hace las veces de ficha de contacto del proyecto, porque repetir el domicilio en cien lugares distintos termina haciendo que dos copias se desincronicen sin que nadie se entere. Para adaptar el proyecto alcanza con editar el valor de acá, ya que ninguna dirección está escrita a mano en otro archivo.
 
-Todo vive dentro de una sola carpeta, la del propio repositorio, y esa decisión explica
-casi todo lo demás. La raíz está en una ruta corta y sin espacios porque Spark en Windows
-se rompe cuando la ruta tiene espacios, y porque el sistema tiene un tope de 260
-caracteres que se agota apenas metemos carpetas profundas, tal cual una mudanza donde la
-caja ya no entra por la puerta. Y la carpeta pesada queda ignorada por git, porque pesa
-mucho y no le interesa a nadie el historial de un gigabyte de librerías.
+Todo vive dentro de una sola carpeta, la del propio repositorio, y esa decisión explica casi todo lo demás. La raíz está en una ruta corta y sin espacios porque Spark en Windows se rompe cuando la ruta tiene espacios, y porque el sistema tiene un tope de 260 carácteres que se agota apenas metemos carpetas profundas. Y la carpeta pesada queda ignorada por git, porque pesa mucho y no le interesa a nadie el historial de un gigabyte de librerías.
 
-Este archivo además deja el entorno preparado en el nivel del módulo, antes de que se
-importe PySpark, y el orden importa. Primero le aclara al intérprete cuál es la venv,
-después le avisa a Hadoop dónde está su carpeta y al final deja JAVA_HOME apuntando al JDK
-correcto. La máquina virtual de Java se lanza una sola vez, cuando se pide la sesión, y
-para ese momento las variables ya tienen que estar escritas, igual que hay que revisar los
-flujos del cerro antes de encenderlo.
+Este archivo además deja el entorno preparado en el nivel del módulo, antes de que se importe PySpark, y el orden importa. Primero le aclara al intérprete cuál es la venv, después le avisa a Hadoop dónde está su carpeta y al final deja JAVA_HOME apuntando al JDK correcto. La máquina virtual de Java se lanza una sola vez, cuando se pide la sesión, y para ese momento las variables ya tienen que estar escritas, igual que hay que revisar los flujos del cerro antes de encenderlo.
 
-De los valores en sí hay tres que conviene tener a mano. La memoria del driver está en 2
-gigabytes porque esta máquina tiene 7,7 en total y Kafka se sirve una porción grande, así
-que si aparece un error de memoria conviene subir este número antes de sospechar de otra
-cosa. Y las carpetas de mezcla están en 4 y no en las 200 que Spark pone por omisión,
-porque Spark reserva memoria para cada una y con doscientas se queda sin aire antes de
-empezar, de modo que si el dataset crece mucho este es el primer número que hay que subir,
-de uno en uno, mirando si sigue entrando todo.
+De los valores en sí hay tres que conviene tener a mano. La memoria del driver está en 2 gigabytes porque esta cosa mía tiene 7,7 en total y Kafka se sirve una porción grande, así que si aparece un error de memoria conviene subir este número antes de sospechar de otra cosa. Y las carpetas de mezcla están en 4 y no en las 200 que Spark pone por omisión, dado que Spark reserva memoria para cada una y con doscientas se queda sin aire antes de empezar, de modo que si el dataset crece mucho este es el primer número que hay que subir, de uno en uno, mirando si sigue entrando todo.
 
-El tercero es el que más costó encontrar, y merece su propio párrafo. Al escribir cualquier
-archivo, Spark le pone permisos, y en Windows esa operación la hace un binario de Hadoop
-llamado winutils que no viene con nada. Sin él la lectura de datos funciona sin
-problemas, pero la escritura revienta con un error que no dice nada de permisos, sino que
-se hace pasar por una ruta mal escrita, y por eso cuesta tanto darse cuenta. La versión
-que instalamos es la 3.4 porque es la más cercana a la 3.5 que trae PySpark, y el proyecto
-la declara por su cuenta para que en otra máquina no haya que configurarla a mano.
-"""
+El tercero es el que más costó encontrar, y merece su propio párrafo. Al escribir cualquier archivo, Spark le pone permisos, y en Windows esa operación la hace un binario de Hadoop llamado winutils que no viene con nada. Sin él la lectura de datos funciona sin problemas, pero la escritura revienta con un error que no dice nada de permisos, sino que se hace pasar por una ruta mal escrita, y por eso cuesta tanto darse cuenta. La versión que instalamos es la 3.4 porque es la más cercana a la 3.5 que trae PySpark, y el proyecto la declara por su cuenta para que en otra máquina no haya que configurarla a mano."""
 
 import os
 from pathlib import Path
@@ -47,14 +20,7 @@ CARPETA_TEMURIN = Path(r"C:\Program Files\Eclipse Adoptium")
 def resolver_java() -> Path | None:
     """Busca el JDK 17 de Temurin y lo devuelve si lo encuentra.
 
-    Existe porque la variable JAVA_HOME se escribe en el registro de Windows y solo la leen
-    las consolas que se abren después. Un proceso que ya venía corriendo se queda con el
-    valor viejo, y si en esa máquina el PATH trae el Java 20 de Oracle, Spark arranca con
-    una versión que no aguanta. El nombre va en mayúsculas porque así exactamente lo lee
-    PySpark cuando lanza la máquina virtual. Si la carpeta no existe devolvemos nada en
-    lugar de fallar, porque puede que en otra máquina el JDK se haya instalado en otro lado
-    y en ese caso conviene que sea el propio sistema el que decida.
-    """
+    Existe porque la variable JAVA_HOME se escribe en el registro de Windows y solo la leen las consolas que se abren después. Un proceso que ya venía corriendo se queda con el valor viejo, y si en esa máquina el PATH trae el Java 20 de Oracle, Spark arranca con una versión que no aguanta. El nombre va en mayúsculas porque así exactamente lo lee PySpark cuando lanza la máquina virtual. Si la carpeta no existe devolvemos nada en lugar de fallar, porque puede que en otra máquina el JDK se haya instalado en otro lado y en ese caso conviene que sea el propio sistema el que decida."""
     for candidato in sorted(CARPETA_TEMURIN.glob("jdk-17*")):
         if (candidato / "bin" / "java.exe").is_file():
             return candidato
@@ -135,17 +101,7 @@ CARPETA_SALIDAS = "salidas"
 
 
 def preparar_winutils() -> None:
-    """Deja la biblioteca nativa de Windows con el nombre que Hadoop espera encontrar.
-
-    Este detalle costó horas encontrarlo, y el síntoma engaña bastante. Hadoop busca una
-    biblioteca llamada winutils, pero lo que se descarga de internet se llama hadoop.dll,
-    así que hay que hacer una copia con el otro nombre. Sin esa copia todo lo que lee
-    funciona sin problema y en cambio cualquier escritura revienta, porque el paso que
-    la necesita es el de poner permisos, y el error que sale menciona una biblioteca
-    faltante y nada de permisos, que es lo que desorienta. La función es defensiva a
-    propósito, porque si la carpeta todavía no existe no hay nada que hacer y no queremos
-    que el import del módulo se caiga por eso.
-    """
+    # Deja la biblioteca nativa de Windows con el nombre que Hadoop espera encontrar.
     carpeta_bin = HADOOP_HOME / "bin"
     if not carpeta_bin.is_dir():
         return
@@ -156,12 +112,9 @@ def preparar_winutils() -> None:
 
 
 def asegurar_carpetas() -> None:
-    """Crea las carpetas del proyecto cuando todavía no existen.
-
-    Existe por un motivo concreto, cuando alguien clona el repositorio en otra máquina las
-    carpetas vacías no viajan con él porque git no guarda directorios sin archivos, así que
-    sin esta función el primer script se caería al intentar escribir en una carpeta fantasma.
-    """
+    """Crea las carpetas del proyecto cuando todavía no existen. 
+        
+        Existe por un motivo concreto, cuando alguien clona el repositorio en otra máquina las carpetas vacías no viajan con él porque git no guarda directorios sin archivos, así que sin esta función el primer script se caería al intentar escribir en una carpeta fantasma."""
     for zona in ZONAS_DATOS:
         (DATOS / zona).mkdir(parents=True, exist_ok=True)
     CHECKPOINTS.mkdir(parents=True, exist_ok=True)

@@ -156,7 +156,7 @@ tar -xzf "C:\BigDataLab03\kafka.tgz" -C "C:\BigDataLab03"
 Rename-Item "C:\BigDataLab03\kafka_2.13-4.1.2" "kafka"
 ```
 
-Kafka 4.x trabaja en modo KRaft y ya no usa ZooKeeper, así que cualquier tutorial anterior que mencione 'zookeeper-server-start' está obsoleto. Después se formatea el almacenamiento y se arranca, y eso lo hace `start_kafka.ps1`.
+Kafka 4.x trabaja en modo KRaft y ya no usa ZooKeeper, así que cualquier tutorial anterior que mencione 'zookeeper-server-start' está obsoleto. Después se formatea el almacenamiento y se arranca, y eso lo hace 'start_kafka.ps1'.
 
 Para que funcione con un tipo de verificación tiene que responder el puerto 9092
 
@@ -166,36 +166,24 @@ Test-NetConnection -ComputerName localhost -Port 9092
 
 ## Paso 5: Smoke test
 
-Prueba de humo, o sea que verifica que las cuatro piezas anteriores se puedan usar juntas
-antes de construir nada encima.
+Prueba de humo, o sea que verifica que las cuatro piezas anteriores se puedan usar juntas antes de construir nada encima.
 
 ```powershell
 cmd /c "`"$py`" `"$repo\src\comun\smoke_test.py`" > `"$repo\evidencias\logs\00_smoke_test.log`" 2>&1"
 Get-Content "$repo\evidencias\logs\00_smoke_test.log"
 ```
 
-Tiene que terminar con 'SMOKE TEST: OK' y seven de seven pruebas superadas.
+Tiene que terminar con 'SMOKE TEST: OK' y siete de siete pruebas superadas.
 
-Ojo con este comando, porque la forma intuitiva de escribirlo no sirve. Si usás el 2>&1
-con Tee-Object de PowerShell, el log se guarda con cuatro líneas de decoración de error
-metidas en medio, del tipo 'CategoryInfo' y 'FullyQualifiedErrorId', que no las escribe
-nuestro script sino PowerShell que se queja de que el proceso escribió en la salida de
-errores. Como el log es evidencia, ahí no puede quedar basura, por eso el comando pasa por
-cmd, que no decora nada. Después el Get-Content es solo para ver el resultado en pantalla,
-porque cmd escribe directo al archivo y no a la consola.
+Ojo con este comando, porque la forma intuitiva de escribirlo no sirve. Si usás el 2>&1 con Tee-Object de PowerShell, el log se guarda con cuatro líneas de decoración de error metidas en medio, del tipo 'CategoryInfo' y 'FullyQualifiedErrorId', que no las escribe nuestro script sino PowerShell que se queja de que el proceso escribió en la salida de errores. Como el log es evidencia, ahí no puede quedar basura, por eso el comando pasa por cmd, que no decora nada.
 
-Al final del log vas a ver unas líneas que dicen 'CORRECTO: el proceso con PID...' y esas
-no son nuestras, las pone Windows cuando cierra los procesos hijos de la máquina virtual
-de Java. Se dejan como están a propósito, porque un log de evidencia tiene que ser crudo
-y filtrarlo sería dishonesto.
+Después el Get-Content es solo para ver el resultado en pantalla, porque cmd escribe directo al archivo y no a la consola.
+
+Al final del log vas a ver unas líneas que dicen 'CORRECTO: el proceso con PID...' y esas no son nuestras, las pone Windows cuando cierra los procesos hijos de la máquina virtual de Java. Se dejan como están a propósito, porque un log de evidencia tiene que ser crudo y filtrarlo sería dishonesto.
 
 ## Sobre cómo registrar los pasos
 
-Cada script del proyecto imprime al comienzo un encabezado con la fecha, el commit de git,
-el comando exacto y las versiones, y eso lo hace el módulo 'evidencia.py'. La idea es que
-un log suelto en 'evidencias\logs' sirva como prueba sin que haga falta un párrafo al lado
-que lo explique. Para guardar la salida de cualquier script, se usa siempre el mismo
-comando del paso 5, cambiando la ruta del script y la del log.
+Cada script del proyecto imprime al comienzo un encabezado con la fecha, el commit de git, el comando exacto y las versiones, y eso lo hace el módulo 'evidencia.py'. La idea es que un log suelto en 'evidencias\logs' sirva como prueba sin que haga falta un párrafo al lado que lo explique. Para guardar la salida de cualquier script, se usa siempre el mismo comando del paso 5, cambiando la ruta del script y la del log.
 
 ## Reproducir el entorno desde cero
 
@@ -203,7 +191,7 @@ comando del paso 5, cambiando la ruta del script y la del log.
 .\bootstrap.ps1
 ```
 
-Recrea la venv e instala las versiones pineadas de `requisitos.txt`.
+Recrea la venv e instala las versiones pineadas de 'requisitos.txt'.
 
 ## Ejecutar el pipeline completo
 
@@ -234,7 +222,7 @@ Ejecuta el pipeline dos veces y compara los hashes SHA-256 de las salidas.
 
 Esto se documenta a propósito, porque es lo que vale el criterio de resolución de problemas.
 
-| Síntoma | Causa real | Solución |
+| Problema | Causa real | Solución |
 | --------- | ----------- | ---------- |
 | 'ModuleNotFoundError: No module named 'pyspark'' | el pip del PATH es el de Python 3.13 y 'python' es el 3.12 | usar siempre la venv y la forma '-m pip' |
 | 'Unsupported class file major version' | 'JAVA_HOME' vacío, así que Spark tomaba el Java 20 del PATH | apuntar 'JAVA_HOME' al Temurin 17 |

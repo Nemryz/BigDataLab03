@@ -1,24 +1,8 @@
-"""Fábrica de sesiones de Spark para el Laboratorio 03 de Big Data.
-
-Este archivo tiene una sola misión, que es el molde con el que se fabrica una sesión de
-Spark ya configurada, para que ningún script tenga que acordarse de los valores. Es como
-una receta donde todos los cocineros usan la misma bandeja, y no como una libreta donde
-cada uno anota las suyas a su modo. La única diferencia entre un script y otro es si
-necesitan Kafka, y para eso existe el interruptor que aparece más abajo, de manera que un
-script que no usa Kafka no arrastra el conector ni espera su descarga.
-"""
 import config
 
 
 def get_spark(nombre_app, con_kafka=False):
-    """Devuelve una sesión de Spark configurada según lo que define config.py.
-
-    El nombre de la aplicación es lo que aparece arriba en la interfaz web de Spark, que
-    es la pantalla que usamos de evidencia, así que conviene que diga algo reconocible en
-    lugar de un nombre genérico. El interruptor de Kafka se deja apagado por omisión porque
-    pedir el conector tiene un costo la primera vez y solo lo pagarían los scripts que en
-    verdad leen o escriben en el topic.
-    """
+    #Devuelve una sesión de Spark configurada según lo que define config.py.
     from pyspark.sql import SparkSession
 
     # Antes de armar nada dejamos la biblioteca nativa de Windows con el nombre que Hadoop busca
@@ -53,6 +37,7 @@ def get_spark(nombre_app, con_kafka=False):
         constructor = constructor.config("spark.jars.packages", config.SPARK_PACKAGES)
 
     # Le pasamos a la JVM dónde está la carpeta de Hadoop y dónde buscar bibliotecas, y sin esto cualquier escritura falla
+    
     # Ojo que la dirección tiene que llevar barras normales, porque con contrabarras la JVM se los come al leer la propiedad
     opciones_java = "-Dhadoop.home.dir=" + config.HADOOP_HOME_JVM
     opciones_java += " -Djava.library.path=" + config.HADOOP_HOME_JVM + "/bin"

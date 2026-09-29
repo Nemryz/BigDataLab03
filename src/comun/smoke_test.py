@@ -1,26 +1,19 @@
 """Prueba de humo del entorno, o sea la verificación de que todo lo instalado funciona junto.
 
-Antes de construir un pipeline encima conviene comprobar que las piezas están bien
-colocadas, y esto lo hace en orden de menor a mayor dificultad para que cuando algo falle
-se sepa en qué punto pasó. Si la máquina virtual no levanta, el primer renglón ya dice que
-falló la versión de Java. Si el Parquet no se puede escribir, el quinto avisa que el
-problema es de permisos y no de la consulta. Ese orden existe porque el error más
-confuso de los que vimos en este laboratorio fue el de los permisos, que se hace pasar
-por un error de dirección mal escrita.
+Antes de construir un pipeline encima conviene comprobar que las piezas están bien colocadas, y esto lo hace en orden de menor a mayor dificultad para que cuando algo falle se sepa en qué punto pasó. Si la máquina virtual no levanta, el primer renglón ya dice que falló la versión de Java. 
 
-Cada prueba dice qué esperaba y qué obtuvo, porque un log que solo dice que pasó no sirve
-para saber después si el resultado era el correcto o simplemente un número cualquiera.
-Por eso el script compara contra un valor esperado en vez de solo imprimir.
+Si el Parquet no se puede escribir, el quinto avisa que el problema es de permisos y no de la consulta. Ese orden existe porque el error más confuso de los que vimos en este laboratorio fue el de los permisos, que se hace pasar por un error de dirección mal escrita.
 
-Al final escribe un archivo Parquet de prueba en la zona silver, lo lee de vuelta y lo
-borra, para que no ensucie el lago con datos de la verificación.
-"""
+Cada prueba dice qué esperaba y qué obtuvo, porque un log que solo dice que pasó no sirve para saber después si el resultado era el correcto o simplemente un número cualquiera. Por eso el script compara contra un valor esperado en vez de solo imprimir.
+
+Al final escribe un archivo Parquet de prueba en la zona silver, lo lee de vuelta y lo borra, para que no ensucie el lago con datos de la verificación."""
 
 import os
 import shutil
 import sys
 
 # Agregamos la carpeta de los módulos compartidos al camino de búsqueda, porque este script
+
 # vive en la misma carpeta que ellos y Python no la agrega solo cuando se ejecuta suelto
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -29,19 +22,13 @@ from evidencia import imprimir_header
 from spark_session import get_spark
 
 # La carpeta donde se escribe la prueba, y lleva un guion al final para que no se confunda
+
 # con una zona de datos real si alguien revisa la carpeta antes de que el script termine
 CARPETA_PRUEBA = config.DATOS / "silver" / "_prueba_fum"
 
 
 def _comprobar(nombre, obtenido, esperado, pruebas):
-    """Compara lo obtenido contra lo esperado, lo imprime y anota si pasó.
-
-    Se separó en su propia función porque las siete pruebas del script repiten el mismo
-    patrón, y si el patrón cambia hay que cambiarlo en un solo lugar y no en siete. La
-    lista de pruebas se pasa por parámetro en vez de devolver el valor porque el script
-    tiene que seguir corriendo después de una prueba fallida, para que el log muestre
-    todas las fallas y no solo la primera.
-    """
+    #Compara lo obtenido contra lo esperado, lo imprime y anota si pasó. 
     coincide = obtenido == esperado
     pruebas.append(coincide)
     print(f"{nombre}: obtenido {obtenido}, esperado {esperado}", flush=True)
@@ -49,7 +36,7 @@ def _comprobar(nombre, obtenido, esperado, pruebas):
 
 
 def main():
-    """Ejecuta todas las pruebas en orden y devuelve cero solo si todas pasaron."""
+    # Ejecuta todas las pruebas en orden y devuelve cero solo si todas pasaron. 
     imprimir_header("smoke_test.py")
     config.asegurar_carpetas()
     pruebas = []
