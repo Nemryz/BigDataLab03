@@ -13,6 +13,13 @@ caracteres que se agota apenas metemos carpetas profundas, tal cual una mudanza 
 caja ya no entra por la puerta. Y la carpeta pesada queda ignorada por git, porque pesa
 mucho y no le interesa a nadie el historial de un gigabyte de librerías.
 
+Este archivo además deja el entorno preparado en el nivel del módulo, antes de que se
+importe PySpark, y el orden importa. Primero le aclara al intérprete cuál es la venv,
+después le avisa a Hadoop dónde está su carpeta y al final deja JAVA_HOME apuntando al JDK
+correcto. La máquina virtual de Java se lanza una sola vez, cuando se pide la sesión, y
+para ese momento las variables ya tienen que estar escritas, igual que hay que revisar los
+flujos del cerro antes de encenderlo.
+
 De los valores en sí hay tres que conviene tener a mano. La memoria del driver está en 2
 gigabytes porque esta máquina tiene 7,7 en total y Kafka se sirve una porción grande, así
 que si aparece un error de memoria conviene subir este número antes de sospechar de otra
@@ -33,6 +40,26 @@ la declara por su cuenta para que en otra máquina no haya que configurarla a ma
 import os
 from pathlib import Path
 
+# La carpeta donde winget deja el JDK de Eclipse, y dentro están las versiones con su número en el nombre
+CARPETA_TEMURIN = Path(r"C:\Program Files\Eclipse Adoptium")
+
+
+def resolver_java() -> Path | None:
+    """Busca el JDK 17 de Temurin y lo devuelve si lo encuentra.
+
+    Existe porque la variable JAVA_HOME se escribe en el registro de Windows y solo la leen
+    las consolas que se abren después. Un proceso que ya venía corriendo se queda con el
+    valor viejo, y si en esa máquina el PATH trae el Java 20 de Oracle, Spark arranca con
+    una versión que no aguanta. El nombre va en mayúsculas porque así exactamente lo lee
+    PySpark cuando lanza la máquina virtual. Si la carpeta no existe devolvemos nada en
+    lugar de fallar, porque puede que en otra máquina el JDK se haya instalado en otro lado
+    y en ese caso conviene que sea el propio sistema el que decida.
+    """
+    for candidato in sorted(CARPETA_TEMURIN.glob("jdk-17*")):
+        if (candidato / "bin" / "java.exe").is_file():
+            return candidato
+    return None
+
 # La raíz del proyecto, deducida desde la ubicación de este archivo para que ninguna ruta escrita a mano se quede vieja
 RAIZ = Path(__file__).resolve().parents[2]
 
@@ -42,6 +69,11 @@ VENV_PYTHON = RAIZ / ".venv" / "Scripts" / "python.exe"
 # Aclaramos que PySpark use la venv, y esto va antes de importar PySpark para que los procesos hijos abran el Python correcto
 os.environ.setdefault("PYSPARK_PYTHON", str(VENV_PYTHON))
 os.environ.setdefault("PYSPARK_DRIVER_PYTHON", str(VENV_PYTHON))
+
+# Apuntamos JAVA_HOME al JDK 17 antes de que arranque la máquina virtual, y si no lo encontramos dejamos la variable como estaba
+_java_encontrado = resolver_java()
+if _java_encontrado is not None:
+    os.environ["JAVA_HOME"] = str(_java_encontrado)
 
 # La carpeta con los binarios de Hadoop que Windows necesita para poder poner permisos a los archivos que Spark escribe
 HADOOP_HOME = RAIZ / "winutils"
