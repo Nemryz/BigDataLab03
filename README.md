@@ -170,10 +170,32 @@ Prueba de humo, o sea que verifica que las cuatro piezas anteriores se puedan us
 antes de construir nada encima.
 
 ```powershell
-& $py "$repo\src\comun\smoke_test.py" 2>&1 | Tee-Object "$repo\evidencias\logs\00_smoke_test.log"
+cmd /c "`"$py`" `"$repo\src\comun\smoke_test.py`" > `"$repo\evidencias\logs\00_smoke_test.log`" 2>&1"
+Get-Content "$repo\evidencias\logs\00_smoke_test.log"
 ```
 
-Tiene que terminar con 'SMOKE TEST: OK'.
+Tiene que terminar con 'SMOKE TEST: OK' y seven de seven pruebas superadas.
+
+Ojo con este comando, porque la forma intuitiva de escribirlo no sirve. Si usás el 2>&1
+con Tee-Object de PowerShell, el log se guarda con cuatro líneas de decoración de error
+metidas en medio, del tipo 'CategoryInfo' y 'FullyQualifiedErrorId', que no las escribe
+nuestro script sino PowerShell que se queja de que el proceso escribió en la salida de
+errores. Como el log es evidencia, ahí no puede quedar basura, por eso el comando pasa por
+cmd, que no decora nada. Después el Get-Content es solo para ver el resultado en pantalla,
+porque cmd escribe directo al archivo y no a la consola.
+
+Al final del log vas a ver unas líneas que dicen 'CORRECTO: el proceso con PID...' y esas
+no son nuestras, las pone Windows cuando cierra los procesos hijos de la máquina virtual
+de Java. Se dejan como están a propósito, porque un log de evidencia tiene que ser crudo
+y filtrarlo sería dishonesto.
+
+## Sobre cómo registrar los pasos
+
+Cada script del proyecto imprime al comienzo un encabezado con la fecha, el commit de git,
+el comando exacto y las versiones, y eso lo hace el módulo 'evidencia.py'. La idea es que
+un log suelto en 'evidencias\logs' sirva como prueba sin que haga falta un párrafo al lado
+que lo explique. Para guardar la salida de cualquier script, se usa siempre el mismo
+comando del paso 5, cambiando la ruta del script y la del log.
 
 ## Reproducir el entorno desde cero
 
