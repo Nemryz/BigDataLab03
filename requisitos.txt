@@ -1,4 +1,4 @@
-﻿contourpy==1.4.0
+contourpy==1.4.0
 cycler==0.12.1
 fonttools==4.66.0
 kiwisolver==1.5.1
@@ -10,8 +10,9 @@ pillow==12.3.0
 py4j==0.10.9.9
 pyarrow==25.0.1
 pyparsing==3.3.3
-pyspark==4.2.0
+pyspark==3.5.9
 python-dateutil==2.9.0.post0
 pytz==2026.4
+setuptools==84.0.0
 six==1.17.0
 tzdata==2026.4
