@@ -4,14 +4,21 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Runtime pesado: vive en C:\lab03, fuera del repo
+# Binarios de Hadoop para Windows, se descargan con bootstrap.ps1 y no se versionan
+winutils/
+
+# Datos crudos, estados del streaming y memoria del conector de Kafka
 datos/
 checkpoints/
 .ivy2/
 kafka/
 kafka.tgz
-resultados/parquet/
-resultados/sqlite/
+
+# Salidas pesadas dentro de cada arquitectura, los CSV y los PNG sí se versionan
+# porque son la evidencia visible de que el pipeline produjo resultados
+*/salidas/parquet/
+*/salidas/sqlite/
+*/salidas/checkpoints/
 
 # Evidencias regenerables con run_all.ps1
 evidencias/logs/
