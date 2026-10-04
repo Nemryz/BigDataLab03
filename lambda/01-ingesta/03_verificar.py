@@ -60,6 +60,7 @@ def _leer_topic(topic):
 
     Así cada corrida parte del principio y no depende de lo que se consumió antes."""
     from kafka import KafkaConsumer
+    from kafka.serializer import JsonSerializer
 
     try:
         consumidor = KafkaConsumer(
@@ -69,7 +70,7 @@ def _leer_topic(topic):
             auto_offset_reset="earliest",
             enable_auto_commit=False,
             consumer_timeout_ms=SIN_MENSAJES_MS,
-            value_deserializer=lambda bruto: json.loads(bruto.decode("utf-8")),
+            value_deserializer=JsonSerializer(),
         )
         registros = list(consumidor)
         consumidor.close()

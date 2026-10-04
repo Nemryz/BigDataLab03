@@ -24,14 +24,18 @@ Uso:
   02_productor.py                        60 mensajes a un por segundo
   02_productor.py --mensajes 20          corta antes
   02_productor.py --segundos 0.1         diez por segundo, para probar
-  02_productor.py --limpiar              borra el topic antes de empezar
+  02_productor.py --limpiar              deja el broker en cero antes de empezar
   02_productor.py --lista                imprime lo que enviaría y no manda nada
 """
 
 import argparse
 import json
 import os
+import shutil
+import stat
+import subprocess
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 
@@ -179,39 +183,102 @@ def _asegurar_topic(bootstrap, topic):
         return False
 
 
-def _borrar_topic(bootstrap, topic):
-    """Borra el topic para que la corrida arranque en cero y devuelve si lo logró.
+def _correr_script(nombre):
+    """Corre uno de los scripts del proyecto, manda su salida a este log y devuelve si terminó bien.
+
+    La consola se abre oculta para que no aparezca saltando en la pantalla del laboratorio.
+
+    La salida se lee en un hilo aparte y no en el hilo principal, porque el arranque del broker deja un proceso largo vivo que hereda el manijón de la tubería y si se esperara el fin de la lectura nunca llegaría.
+
+    El tiempo tope existe por lo mismo, un script colgado no debería poder trabar al productor entero."""
+    script = config.RAIZ / "scripts" / nombre
+    if not script.exists():
+        print(f"No existe el script {script}, no se puede limpiar", flush=True)
+        return False
+
+    proceso = subprocess.Popen(
+        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+
+    def _reenviar():
+        for linea in proceso.stdout:
+            print(f"  {linea.rstrip()}", flush=True)
+
+    lector = threading.Thread(target=_reenviar, daemon=True)
+    lector.start()
+
+    try:
+        codigo = proceso.wait(timeout=180)
+    except subprocess.TimeoutExpired:
+        print("  el script se pasó del tiempo tope, se corta", flush=True)
+        proceso.kill()
+        proceso.wait()
+        return False
+
+    lector.join(timeout=5)
+    return codigo == 0
+
+
+def _quitar_solo_lectura(almacen):
+    """Quita el atributo de solo lectura de todos los archivos de la carpeta de datos de Kafka.
+
+    Kafka deja los archivos de checkpoint marcados como solo lectura, y Windows no permite borrar ninguno de ellos mientras ese atributo siga puesto, así que sin este paso el borrado se cae con un acceso denegado."""
+    for _raiz, _carpetas, archivos in os.walk(almacen):
+        for archivo in archivos:
+            ruta = os.path.join(_raiz, archivo)
+            try:
+                os.chmod(ruta, stat.S_IWRITE)
+            except OSError:
+                pass
+
+
+def _vaciar_almacenamiento(topic):
+    """Deja el almacenamiento del broker en cero para que esta corrida arranque vacía y devuelve si lo logró.
 
     Sin esto el topic acumula lo de todas las corridas, el verificador del paso siguiente cuenta sesenta mensajes en vez de treinta y la bitácora deja de cuadrar con lo que se ejecutó.
 
-    El borrado es una operación que el broker confirma después, por eso se espera un momento antes de volver a crear el topic.
+    No se pide el borrado del topic porque en Windows esa operación renombra un directorio que el propio broker todavía tiene abierto, el renombrado sale con permiso denegado, el broker marca el volumen como inservible y se apaga solo.
 
-    Si el topic no existe no hay nada que borrar, que es exactamente el caso de la primera corrida, y ahí se sigue adelante sin más."""
-    try:
-        administrador = _cliente_admin(bootstrap)
-    except ImportError:
-        print("Sin administrador de topics no se puede limpiar, se produce sobre lo que haya", flush=True)
-        return True
-    except Exception as error:
-        print(f"No se pudo conectar al broker para limpiar: {error}", flush=True)
+    Se apaga y se prende con los scripts del proyecto, se borra la carpeta de datos, y el arranque vuelve a formatear el almacenamiento porque no encuentra el archivo de metadatos, que es el paso que el script ya hace por su cuenta.
+
+    El topic vuelve a llamarse igual después, así que el resto del flujo no se entera del reinicio."""
+    almacen = config.RAIZ / "kafka" / "kraft-logs"
+
+    print("", flush=True)
+    print("Limpiando el almacenamiento del broker", flush=True)
+
+    if not _correr_script("stop_kafka.ps1"):
+        print("No se pudo detener el broker, no se limpia nada", flush=True)
         return False
 
-    try:
-        administrador.delete_topics([topic], timeout_ms=15000, raise_errors=True)
-        administrador.close()
-        print(f"Topic borrado  {topic}", flush=True)
-        # Se le da tiempo al broker a terminar el borrado.
+    # En Windows un archivo del directorio puede quedar abierto unos instantes después de que el broker deje de escuchar, así que se espera y se vuelve a intentar antes de rendirse.
+    ultimo_error = None
+    for _intento in range(2):
+        if not almacen.exists():
+            break
+        _quitar_solo_lectura(almacen)
+        try:
+            shutil.rmtree(almacen)
+            break
+        except OSError as error:
+            ultimo_error = error
+            time.sleep(2)
 
-        # Si se recreara de inmediato el topic nuevo podría chocar con la eliminación vieja que todavía se está procesando.
-        time.sleep(2)
-        return True
-    except Exception as error:
-        administrador.close()
-        if "unknown topic" in str(error).lower() or "does not exist" in str(error).lower():
-            print(f"Topic no existia  {topic}, se arranca de cero", flush=True)
-            return True
-        print(f"No se pudo borrar el topic: {error}", flush=True)
+    if almacen.exists():
+        print(f"No se pudo borrar {almacen}: {ultimo_error}", flush=True)
         return False
+    print(f"  almacenamiento borrado  {almacen}", flush=True)
+
+    if not _correr_script("start_kafka.ps1"):
+        print("No se pudo volver a arrancar el broker", flush=True)
+        return False
+    return True
 
 
 def _argumentos():
@@ -221,7 +288,7 @@ def _argumentos():
     parseador.add_argument("--segundos", type=float, default=1.0, help="segundos entre mensajes")
     parseador.add_argument("--topic", default=config.TOPIC_EVENTOS, help="topic destino")
     parseador.add_argument("--lista", action="store_true", help="imprime los eventos y no manda nada")
-    parseador.add_argument("--limpiar", action="store_true", help="borra el topic antes de producir")
+    parseador.add_argument("--limpiar", action="store_true", help="deja el almacenamiento del broker en cero antes de producir")
     return parseador.parse_args()
 
 
@@ -230,15 +297,18 @@ def _productor_de_kafka():
 
     Se confirma el envío con acks=1, o sea que basta que el broker lo escriba en su propio log, que es el punto medio entre la velocidad y la garantía.
 
-    Con acks=all el productor esperaría a todos los réplicas, que en un broker solo es lo mismo pero más lento."""
+    Con acks=all el productor esperaría a todos los réplicas, que en un broker solo es lo mismo pero más lento.
+
+    Los serializadores son los que trae la librería y no dos funciones sueltas, porque con funciones la librería avisa en cada corrida que no reconoce el formato y mete ese aviso en medio del log de evidencia."""
     from kafka import KafkaProducer
+    from kafka.serializer import DefaultSerializer, JsonSerializer
 
     return KafkaProducer(
         bootstrap_servers=config.KAFKA_BROKER,
         acks=1,
         linger_ms=0,
-        value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode("utf-8"),
-        key_serializer=lambda v: v.encode("utf-8") if v else None,
+        value_serializer=JsonSerializer(),
+        key_serializer=DefaultSerializer(),
     )
 
 
@@ -344,7 +414,7 @@ def main():
         print(f"Fin de la lista, no se mando nada ({len(a_mandar)} eventos)", flush=True)
         return 0
 
-    if args.limpiar and not _borrar_topic(config.KAFKA_BROKER, args.topic):
+    if args.limpiar and not _vaciar_almacenamiento(args.topic):
         return 1
 
     if not _asegurar_topic(config.KAFKA_BROKER, args.topic):

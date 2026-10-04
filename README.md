@@ -149,7 +149,7 @@ El productor acepta varios interruptores.
 | --segundos S | espera S segundos entre mensajes |
 | --topic T | escribe en otro topic |
 | --lista | imprime lo que enviaría y no manda nada |
-| --limpiar | borra el topic antes de empezar |
+| --limpiar | deja el almacenamiento del broker en cero antes de empezar |
 
 Para revisar la lista sin tocar el broker:
 
@@ -275,4 +275,9 @@ Esto se documenta a propósito, porque es lo que vale el criterio de resolución
 | La sesión revienta al leer el primer topic | el conector se pidió compilado con Scala 2.13 y PySpark trae 2.12 | declarar el conector con sufijo 2.12 |
 | El conector se baja de internet en cada arranque | Ivy rehace la resolución con un cache que vence a las 24 horas | pasar los jars locales de .ivy2 por spark.jars |
 | El formateo de Kafka falla sin escribir nada | faltaba el flag standalone en un nodo que es broker y controlador a la vez | pasar el flag standalone junto con el identificador del clúster |
-| El conector carga pero el productor no puede leer | el topic quedó con mensajes de corridas anteriores | borrar el topic con el interruptor limpiar antes de producir |
+| El conector carga pero el productor no puede leer | el topic quedó con mensajes de corridas anteriores | dejar el broker en cero con el interruptor limpiar antes de producir |
+| Borrar un topic rompe el broker | en Windows Kafka no puede mover la carpeta del log mientras la tiene abierta | no se borran topics, se vacía la carpeta de datos con el interruptor limpiar |
+| La parada del broker no hace nada y devuelve cero igual | el script oficial de parada usa wmic, que las versiones nuevas de Windows 11 ya no traen | detener el proceso desde PowerShell buscándolo por el nombre kafka.Kafka |
+| La limpieza se cae con acceso denegado | Kafka deja los archivos de checkpoint marcados como solo lectura y Windows no deja borrarlos | quitar el atributo de solo lectura antes de borrar la carpeta |
+| El arranque del broker deja el productor colgado | el proceso largo hereda el manijón de la salida y la lectura nunca llega a su fin | leer la salida en un hilo aparte y con un tiempo tope |
+| Aviso de desuso por value_deserializer | se le pasó una función en vez de una deserializadora de la librería | usar JsonSerializer del paquete kafka.serializer |

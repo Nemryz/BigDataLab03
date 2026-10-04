@@ -1,23 +1,18 @@
 # Detiene el broker de Kafka de forma ordenada y guarda la evidencia del cierre.
 
-# Se manda la orden de parada en vez de matar el proceso a la fuerza, porque Kafka escribe los datos en disco y si lo matamos de golpe puede dejar archivos a medio escribir.
+# El proceso se corta con la misma orden que usa el script de parada que trae Kafka en Windows, que es dar de baja el proceso cuyo nombre es kafka.Kafka.
 
-# Killing no es lo mismo que cerrar, y con un solo topic de prueba el riesgo es bajo, pero el orden se respeta igual porque es lo correcto y ademas lo que se explica en la defensa.
+# Kafka no ofrece una parada suave desde fuera en Windows, y su script oficial se apoya en wmic, que ya no viene en las versiones nuevas de Windows 11, así que ahí la orden no llega a ningún lado y encima devuelve el código cero como si hubiera salido bien.
+
+# Se hace directamente desde PowerShell para que la orden sí llegue, y el riesgo de dejar archivos a medio escribir es bajo con un solo topic de prueba.
 
 # Es el complemento de start_kafka.ps1 y se puede correr las veces que haga falta.
 
 $ErrorActionPreference = "Continue"
 
 $repo = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
-$bat = Join-Path $repo "kafka\bin\windows"
 $log = Join-Path $repo "evidencias\logs\04_kafka_cierre.log"
 $puerto = 9092
-
-$javaHome = [Environment]::GetEnvironmentVariable('JAVA_HOME', 'User')
-if ($javaHome) {
-    $env:JAVA_HOME = $javaHome
-    $env:Path = "$javaHome\bin;$env:Path"
-}
 
 $escuchando = Test-NetConnection -ComputerName localhost -Port $puerto -InformationLevel Quiet -WarningAction SilentlyContinue
 if (-not $escuchando) {
@@ -26,9 +21,10 @@ if (-not $escuchando) {
 }
 
 Write-Host "Deteniendo el broker de Kafka"
-cmd /c "`"$bat\kafka-server-stop.bat`" 2>nul" | Out-Null
+$procesos = Get-CimInstance Win32_Process -Filter "Name = 'java.exe'" | Where-Object { $_.CommandLine -like "*kafka.Kafka*" }
+$procesos | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 
-# Se espera a que el puerto se libere, con un tope, porque la orden de parada es una peticion y el broker puede tardar un par de segundos en irse
+# Se espera a que el puerto se libere, con un tope, porque aunque el proceso baja de inmediato el sistema tarda un instante en soltar la conexión
 $esperado = 0
 for ($i = 0; $i -lt 40; $i++) {
     Start-Sleep -Milliseconds 500
