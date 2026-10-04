@@ -75,15 +75,15 @@ $versionActual = (cmd /c "`"$py`" -c `"import pyspark; print(pyspark.__version__
 if ("$versionActual".Trim() -eq "3.5.9") {
     escribir "  PySpark 3.5.9 ya estaba"
 } else {
-    $requisitos = Join-Path $repo "requisitos.txt"
+    $requisitos = Join-Path $repo "requirements.txt"
     if (Test-Path $requisitos) {
         # Se instala desde el archivo de requisitos y no desde la lista de base, porque
         # matplotlib no fija la version de contourpy y pip puede resolvarla distinta en
         # cada equipo. Con el archivo pineado las dos instalaciones quedan iguales
-        escribir "  instalando desde requisitos.txt, con las versiones exactas"
+        escribir "  instalando desde requirements.txt, con las versiones exactas"
         cmd /c "`"$py`" -m pip install -r `"$requisitos`" 2>nul" | Out-Null
     } else {
-        escribir "  no hay requisitos.txt, se instalan las versiones base, 400 MB la primera vez"
+        escribir "  no hay requirements.txt, se instalan las versiones base, 400 MB la primera vez"
         cmd /c "`"$py`" -m pip install --upgrade pip 2>nul" | Out-Null
         cmd /c "`"$py`" -m pip install `"pyspark[sql]==3.5.9`" matplotlib 2>nul" | Out-Null
         cmd /c "`"$py`" -m pip install `"pandas==2.3.3`" `"numpy==2.5.3`" setuptools 2>nul" | Out-Null

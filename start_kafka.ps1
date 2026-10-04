@@ -39,8 +39,41 @@ if ($escuchando) {
 }
 
 if (-not (Test-Path (Join-Path $repo "kafka\kraft-logs\meta.properties"))) {
-    Write-Host "El storage no esta formateado, hay que correr kafka-storage format antes"
-    exit 1
+    # El almacenamiento viene sin formatear cada vez que se reinstala Kafka, y sin eso el
+    # broker no arranca. Se formatea acá en vez de dejar un paso manual suelto, porque el
+    # README le dice al lector que esto lo hace este script, y una instrucción que no coincide
+    # con lo que hace el código es el tipo de cosa que cuesta encontrar el día de la defensa.
+    # El storage es un directorio de datos y no de configuración, así que borrarlo no pierde
+    # nada del proyecto
+    $env:KAFKA_HEAP_OPTS = "-Xmx256M -Xms128M"
+    $config = Join-Path $repo "kafka\config\server.properties"
+
+    Write-Host "Formateando el almacenamiento de Kafka"
+
+    # El identificador del cluster se genera en el momento, porque no es un valor que se
+    # pueda inventar ni recordar: es un identificador que Kafka pide que tenga forma de uuid.
+    # Este comando imprime primero un aviso de su propio log4j que no significa un error, así
+    # que se toma la última línea de salida y no la primera
+    $uuid = (cmd /c "`"$($repo)\kafka\bin\windows\kafka-storage.bat`" random-uuid 2>nul" |
+        Where-Object { $_ -and $_.Trim() } | Select-Object -Last 1)
+    $uuid = "$uuid".Trim()
+    if ($uuid.Length -lt 20) {
+        Write-Host "  no se pudo generar el identificador del cluster, se obtuvo '$uuid'"
+        exit 1
+    }
+
+    # El flag --standalone es obligatorio en Kafka 4.x cuando el nodo es broker y controlador
+    # a la vez y no hay una lista de votantes declarada, que es justo nuestra configuración.
+    # Sin él el formateo se corta pidiendo uno de esos tres flags y no escribe nada, y encima
+    # devuelve el código cero, así que un script que solo mirara el código diría que salió bien
+    $salida = cmd /c "`"$($repo)\kafka\bin\windows\kafka-storage.bat`" format -t $uuid -c `"$config`" --standalone 2>&1"
+    $salida | ForEach-Object { Write-Host "  $_" }
+
+    if (-not (Test-Path (Join-Path $repo "kafka\kraft-logs\meta.properties"))) {
+        Write-Host "  el formateo no dejo meta.properties, revisa el mensaje de arriba"
+        exit 1
+    }
+    Write-Host "  storage formateado con el cluster $uuid"
 }
 
 New-Item -ItemType Directory -Force -Path (Split-Path $log -Parent) | Out-Null

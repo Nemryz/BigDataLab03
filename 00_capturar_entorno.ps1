@@ -78,7 +78,7 @@ $utf8SinBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllLines((Join-Path $destino "entorno.txt"), $lineas, $utf8SinBom)
 
 # El archivo de requisitos se refresca con lo que hay ahora instalado
-[System.IO.File]::WriteAllLines((Join-Path $repo "requisitos.txt"), (& $py -m pip freeze 2>&1), $utf8SinBom)
+[System.IO.File]::WriteAllLines((Join-Path $repo "requirements.txt"), (& $py -m pip freeze 2>&1), $utf8SinBom)
 
 # Y una copia sellada con la fecha, para tener varias capturas si el entorno cambia
 [System.IO.File]::WriteAllLines((Join-Path $destino "entorno-$marca.txt"), $lineas, $utf8SinBom)
@@ -86,4 +86,4 @@ $utf8SinBom = New-Object System.Text.UTF8Encoding($false)
 Write-Host "Listo"
 Write-Host "  evidencias\entorno\entorno.txt"
 Write-Host "  evidencias\entorno\entorno-$marca.txt"
-Write-Host "  requisitos.txt"
+Write-Host "  requirements.txt"

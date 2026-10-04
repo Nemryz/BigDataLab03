@@ -479,7 +479,7 @@ las piezas están y, si están, corre las que ya están escritas.
 .\bootstrap.ps1
 ```
 
-Recrea la venv e instala las versiones pineadas de 'requisitos.txt'. Es
+Recrea la venv e instala las versiones pineadas de 'requirements.txt'. Es
 idempotente, se puede correr las veces que haga falta porque antes de cada paso
 pregunta si la cosa ya está hecha.
 

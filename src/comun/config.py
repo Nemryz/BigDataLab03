@@ -157,8 +157,12 @@ def jars_kafka_locales() -> list[str]:
 # La semilla del generador, que es lo que hace que dos corridas produzcan los mismos datos y así las bitácoras se comparen
 SEED = 20260928
 
-# Las cuatro zonas del lago, que se nombran juntas para que todos los scripts apunten al mismo orden
-ZONAS_DATOS = ("raw", "bronze", "silver", "gold")
+# Las carpetas de datos que tiene que existir. En la arquitectura Lambda solo hay una:
+# la foto cruda que baja 01_descargar.py. No hay zonas intermedias porque acá no hay
+# lago que transformar por capas, el dato entra por Kafka y de ahí sale por los dos
+# caminos que son el batch y el streaming. Se deja la lista igual de todas formas para
+# que los scripts no tengan que cambiar si alguna vez se agrega una carpeta
+ZONAS_DATOS = ("raw",)
 
 # La carpeta de resultados de cada arquitectura, que se llama igual en las tres ramas
 CARPETA_SALIDAS = "salidas"

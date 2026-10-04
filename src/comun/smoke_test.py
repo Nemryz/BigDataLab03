@@ -6,7 +6,7 @@ Si el Parquet no se puede escribir, el quinto avisa que el problema es de permis
 
 Cada prueba dice qué esperaba y qué obtuvo, porque un log que solo dice que pasó no sirve para saber después si el resultado era el correcto o simplemente un número cualquiera. Por eso el script compara contra un valor esperado en vez de solo imprimir.
 
-Al final escribe un archivo Parquet de prueba en la zona silver, lo lee de vuelta y lo borra, para que no ensucie el lago con datos de la verificación."""
+Al final escribe un archivo Parquet de prueba en una carpeta temporal, lo lee de vuelta y lo borra, para que no ensucie la carpeta de datos con la verificación."""
 
 import os
 import shutil
@@ -23,8 +23,8 @@ from spark_session import get_spark
 
 # La carpeta donde se escribe la prueba, y lleva un guion al final para que no se confunda
 
-# con una zona de datos real si alguien revisa la carpeta antes de que el script termine
-CARPETA_PRUEBA = config.DATOS / "silver" / "_prueba_fum"
+# con la foto cruda si alguien revisa la carpeta antes de que el script termine
+CARPETA_PRUEBA = config.DATOS / "_prueba_fum"
 
 
 def _comprobar(nombre, obtenido, esperado, pruebas):
