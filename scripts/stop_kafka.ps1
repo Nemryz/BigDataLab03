@@ -1,13 +1,14 @@
 # Detiene el broker de Kafka de forma ordenada y guarda la evidencia del cierre.
-# Se manda la orden de parada en vez de matar el proceso a la fuerza, porque Kafka
-# escribe los datos en disco y si lo matamos de golpe puede dejar archivos a medio escribir.
-# Killing no es lo mismo que cerrar, y con un solo topic de prueba el riesgo es bajo, pero
-# el orden se respeta igual porque es lo correcto y ademas lo que se explica en la defensa.
+
+# Se manda la orden de parada en vez de matar el proceso a la fuerza, porque Kafka escribe los datos en disco y si lo matamos de golpe puede dejar archivos a medio escribir.
+
+# Killing no es lo mismo que cerrar, y con un solo topic de prueba el riesgo es bajo, pero el orden se respeta igual porque es lo correcto y ademas lo que se explica en la defensa.
+
 # Es el complemento de start_kafka.ps1 y se puede correr las veces que haga falta.
 
 $ErrorActionPreference = "Continue"
 
-$repo = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repo = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $bat = Join-Path $repo "kafka\bin\windows"
 $log = Join-Path $repo "evidencias\logs\04_kafka_cierre.log"
 $puerto = 9092
@@ -27,8 +28,7 @@ if (-not $escuchando) {
 Write-Host "Deteniendo el broker de Kafka"
 cmd /c "`"$bat\kafka-server-stop.bat`" 2>nul" | Out-Null
 
-# Se espera a que el puerto se libere, con un tope, porque la orden de parada es una
-# peticion y el broker puede tardar un par de segundos en irse
+# Se espera a que el puerto se libere, con un tope, porque la orden de parada es una peticion y el broker puede tardar un par de segundos en irse
 $esperado = 0
 for ($i = 0; $i -lt 40; $i++) {
     Start-Sleep -Milliseconds 500
@@ -39,8 +39,7 @@ for ($i = 0; $i -lt 40; $i++) {
     }
 }
 
-# El estado final del puerto queda anotado en un archivo aparte, porque sirve de evidencia
-# de que el broker quedo realmente abajo y no solo que mandamos la orden
+# El estado final del puerto queda anotado en un archivo aparte, porque sirve de evidencia de que el broker quedo realmente abajo y no solo que mandamos la orden
 $lineas = @()
 $lineas += "cierre $(Get-Date).ToUniversalTime()"
 $lineas += "puerto $puerto responds  $escuchando"

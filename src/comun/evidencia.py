@@ -1,13 +1,14 @@
 """Traza de cada ejecución para que la bitácora no se escriba a mano.
 
-Cada log arranca con un encabezado que dice cuándo se corrió el script, con qué commit del código y con qué comando exacto, de manera que un log suelto en la carpeta de evidencias sirva como prueba sin que haga falta un párrafo al lado que lo explique. Es la diferencia entre guardar la consola y guardar un registro.
+Cada log arranca con un encabezado que dice cuándo se corrió el script, con qué commit del código y con qué comando exacto, de manera que un log suelto en la carpeta de evidencias sirve como prueba sin que haga falta un párrafo al lado que lo explique.
 
-Lo único que hace este módulo es juntar cuatro datos que de otro modo cada script tendría que buscar por su cuenta. 
+Es la diferencia entre guardar la consola y guardar un registro.
 
-El módulo no importa PySpark al principio a propósito, porque muchos scripts lo necesitan
-antes de tener una sesión y otros no lo necesitan nunca, como el que arma el entorno. Por
-eso la versión de Spark se lee recién cuando se la pide, y si todavía no está instalada
-simplemente se anota que no se pudo leer en vez de reventar.
+Lo único que hace este módulo es juntar cuatro datos que de otro modo cada script tendría que buscar por su cuenta.
+
+El módulo no importa PySpark al principio a propósito, porque muchos scripts lo necesitan antes de tener una sesión y otros no lo necesitan nunca, como el que arma el entorno.
+
+Por eso la versión de Spark se lee recién cuando se la pide, y si todavía no está instalada simplemente se anota que no se pudo leer en vez de reventar.
 """
 
 import atexit
@@ -16,9 +17,9 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
-# Los espejos de la consola y de los errores que están encendidos ahora, si lo hay, y la
-# ruta del archivo que escriben. Se guardan separados porque cerrar el log es volver a la
-# salida original de las dos, y para eso hace falta tenerlas a mano
+# Los espejos de la consola y de los errores que están encendidos ahora, si lo hay, y la ruta del archivo que escriben.
+
+# Se guardan separados porque cerrar el log es volver a la salida original de las dos, y para eso hace falta tenerlas a mano.
 _espejo_salida = None
 _espejo_error = None
 _ruta_del_log = None
@@ -27,16 +28,15 @@ _ruta_del_log = None
 class _Espejo:
     """Manda a la vez a la consola y al archivo de log todo lo que se imprime.
 
-    Esto reemplaza al guion de redirección de la shell ("> log 2>&1"). Con la redirección
-    la consola se queda muda, así que quien ejecuta no ve si el script avanza o se cortó a
-    mitad de camino, y si algo falla el error queda escondido en un archivo que primero hay
-    que acordarse de abrir. Espejando la salida se ve todo en pantalla y al mismo tiempo
-    queda el archivo para la bitácora, con el comando siempre igual.
+    Esto reemplaza al guion de redirección de la shell.
 
-    La consola de Windows trabaja con otra tabla de caracteres que el archivo, así que una
-    letra rara puede romper el escrito y cortar la corrida. Antes de tirar la excepción se
-    intenta otra vez con letras de reemplazo: se prefiere un signo de pregunta en la
-    pantalla antes que perder la ejecución entera.
+    Con la redirección la consola se queda muda, así que quien ejecuta no ve si el script avanza o se cortó a mitad de camino, y si algo falla el error queda escondido en un archivo que primero hay que acordarse de abrir.
+
+    Espejando la salida se ve todo en pantalla y al mismo tiempo queda el archivo para la bitácora, con el comando siempre igual.
+
+    La consola de Windows trabaja con otra tabla de caracteres que el archivo, así que una letra rara puede romper el escrito y cortar la corrida.
+
+    Antes de tirar la excepción se intenta otra vez con letras de reemplazo, porque se prefiere un signo de pregunta en la pantalla antes que perder la ejecución entera.
     """
 
     def __init__(self, original, archivo):
@@ -56,8 +56,7 @@ class _Espejo:
         self._archivo.flush()
 
     def isatty(self):
-        # Se responde lo mismo que la consola de verdad, porque hay bibliotecas que
-        # imprimen distinto según creen que están frente a una terminal
+        # Se responde lo mismo que la consola de verdad, porque hay bibliotecas que imprimen distinto según creen que están frente a una terminal.
         try:
             return self._original.isatty()
         except Exception:
@@ -70,7 +69,9 @@ class _Espejo:
 def _commit_actual():
     """Devuelve el commit corto de git, o un texto de reemplazo si no hay repositorio.
 
-    Se usa git porque el commit identifica la versión exacta del código que produjo el log, y con eso se puede volver a esa versión para reproducir el resultado. La carpeta del repositorio se le pasa explícitamente en vez de confiar en la carpeta de trabajo, porque si alguien corre el script desde el escritorio el comando se queda sin repositorio y el commit se pierde, que es justo el dato más importante del encabezado."""
+    Se usa git porque el commit identifica la versión exacta del código que produjo el log, y con eso se puede volver a esa versión para reproducir el resultado.
+
+    La carpeta del repositorio se le pasa explícitamente en vez de confiar en la carpeta de trabajo, porque si alguien corre el script desde el escritorio el comando se queda sin repositorio y el commit se pierde, que es justo el dato más importante del encabezado."""
     try:
         import config
 
@@ -92,8 +93,7 @@ def _commit_actual():
 def _version_spark():
     """Devuelve la versión de PySpark instalada, o avisa que no pudo leerla.
 
-    Se lee acá adentro y no arriba del archivo porque importar PySpark es caro y además obliga a que la máquina virtual de Java esté encendida, y para imprimir un encabezado no vale la pena pedirle eso al sistema.
-    """
+    Se lee acá adentro y no arriba del archivo porque importar PySpark es caro y además obliga a que la máquina virtual de Java esté encendida, y para imprimir un encabezado no vale la pena pedirle eso al sistema."""
     try:
         import pyspark
 
@@ -102,34 +102,45 @@ def _version_spark():
         return "no-disponible"
 
 
+def _campos_del_encabezado(script):
+    """Reúne las parejas de etiqueta y valor que forman el encabezado de la corrida.
+
+    Están en una lista y no escritas una abajo de la otra para que sumar un dato signifique agregar una pareja y nada más.
+
+    El primer renglón no trae etiqueta porque el nombre del script ya cumple esa función."""
+    ahora = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return (
+        (script, ahora),
+        ("commit", _commit_actual()),
+        ("comando", " ".join(sys.argv)),
+        ("python", f"{sys.version.split()[0]} en {sys.executable}"),
+        ("pyspark", _version_spark()),
+        ("plataforma", platform.platform()),
+    )
+
+
 def imprimir_header(script):
     """Imprime el encabezado de trazabilidad al comienzo de cada ejecución.
 
-    Se llama una sola vez, apenas arranca el script, y conviene que sea lo primero que aparezca en el log. El flush del cierre está porque Python acumula la salida en un búfer cuando el log no va a una terminal, y sin eso el encabezado puede quedar al final del archivo o directamente no aparecer si el script se corta."""
-    ahora = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    print(f"{script}  {ahora}", flush=True)
-    print(f"commit  {_commit_actual()}", flush=True)
-    print(f"comando  {' '.join(sys.argv)}", flush=True)
-    print(f"python  {sys.version.split()[0]} en {sys.executable}", flush=True)
-    print(f"pyspark  {_version_spark()}", flush=True)
-    print(f"plataforma  {platform.platform()}", flush=True)
+    Se llama una sola vez, apenas arranca el script, y conviene que sea lo primero que aparezca en el log.
+
+    El flush del cierre está porque Python acumula la salida en un búfer cuando el log no va a una terminal, y sin eso el encabezado puede quedar al final del archivo o directamente no aparecer si el script se corta."""
+    for etiqueta, valor in _campos_del_encabezado(script):
+        print(f"{etiqueta}  {valor}", flush=True)
 
 
 def iniciar_log(nombre):
     """Abre el log de la corrida y a partir de ahí espejea en él todo lo que se imprime.
 
-    Se llama una sola vez, antes del encabezado, y se le pasa el nombre propio del script y
-    no un número de orden. Con nombre propio el archivo no depende de en qué orden se
-    corrieron los otros pasos ni de cuántos van, así que un log suelto se entiende sin
-    tener que mirar la carpeta entera.
+    Se llama una sola vez, antes del encabezado, y se le pasa el nombre propio del script y no un número de orden.
 
-    Se espejean también los errores. Si el script se corta con una excepción, el aviso sale
-    por el canal de errores y no por la salida normal, y sin esto el log terminaría diciendo
-    que todo anduvo bien en una corrida que en realidad se cortó a mitad de camino.
+    Con nombre propio el archivo no depende de en qué orden se corrieron los otros pasos ni de cuántos van, así que un log suelto se entiende sin tener que mirar la carpeta entera.
 
-    Si ya había un log encendido no hace nada, que es lo que conviene cuando un script se
-    usa como módulo de otro: el que mandó sigue mandando y no se pisan dos archivos a la vez.
-    """
+    Se espejean también los errores.
+
+    Si el script se corta con una excepción, el aviso sale por el canal de errores y no por la salida normal, y sin esto el log terminaría diciendo que todo anduvo bien en una corrida que en realidad se cortó a mitad de camino.
+
+    Si ya había un log encendido no hace nada, que es lo que conviene cuando un script se usa como módulo de otro, el que mandó sigue mandando y no se pisan dos archivos a la vez."""
     global _espejo_salida, _espejo_error, _ruta_del_log
 
     if _espejo_salida is not None:
@@ -146,8 +157,7 @@ def iniciar_log(nombre):
     _ruta_del_log = ruta
     sys.stdout = _espejo_salida
     sys.stderr = _espejo_error
-    # Se cierra al terminar el proceso y no al final de main, porque si el script se corta
-    # con una excepción main nunca llega al final y el archivo quedaría sin cerrar
+    # Se cierra al terminar el proceso y no al final de main, porque si el script se corta con una excepción main nunca llega al final y el archivo quedaría sin cerrar.
     atexit.register(cerrar_log)
     return ruta
 
@@ -167,8 +177,7 @@ def cerrar_log():
     print("", flush=True)
     print(f"Log       {ruta}", flush=True)
 
-    # Primero se descargan los búferes de las dos salidas mientras el archivo todavía está
-    # abierto, y recién después se cierra
+    # Primero se descargan los búferes de las dos salidas mientras el archivo todavía está abierto, y recién después se cierra.
     espejo_salida.flush()
     espejo_error.flush()
     sys.stdout = espejo_salida._original

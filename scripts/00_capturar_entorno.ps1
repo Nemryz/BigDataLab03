@@ -1,15 +1,14 @@
-# Captura la huella del entorno del proyecto.
-# Se ejecuta desde la raiz del repositorio y guarda todo en evidencias\entorno.
-# Sirve para dos cosas, para el informe tecnico y para demostrar que el resultado depende
-# de versiones concretas y no de la suerte.
-# El archivo se escribe sin BOM a proposito, porque con BOM el pip install -r falla y
-# no sabemos por que, ya que el error que sale no menciona nada de codificacion.
-# Lo mismo con la version de Java, que se captura pasando por cmd porque en PowerShell
-# 5.1 esa orden escribe en la salida de errores y eso rompe el script si esta estricto.
+# Captura la huella del entorno del proyecto. Se ejecuta desde la raiz del repositorio y guarda todo en evidencias\entorno.
+
+# Sirve para dos cosas, para el informe tecnico y para demostrar que el resultado depende de versiones concretas y no de la suerte.
+
+# El archivo se escribe sin BOM a proposito, porque con BOM el pip install -r falla y no sabemos por que, ya que el error que sale no menciona nada de codificacion.
+
+# Lo mismo con la version de Java, que se captura pasando por cmd porque en PowerShell 5.1 esa orden escribe en la salida de errores y eso rompe el script si esta estricto.
 
 $ErrorActionPreference = "Stop"
 
-$repo = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repo = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $destino = Join-Path $repo "evidencias\entorno"
 $py = Join-Path $repo ".venv\Scripts\python.exe"
 $marca = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH-mm-ssZ")

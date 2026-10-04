@@ -1,13 +1,16 @@
 # Deja el entorno listo desde cero, para reproducir el laboratorio en otra maquina.
+
 # Los cinco pasos son los mismos que estan en el README, solo que aqui estan en automatico.
-# El script se puede correr las veces que haga falta porque antes de cada paso pregunta si
-# la cosa ya esta hecha, y si lo esta la salta. Eso importa porque el README es para leer
-# y este es para ejecutar, y si uno corre los dos sin querer no deberia romper nada.
+
+# El script se puede correr las veces que haga falta porque antes de cada paso pregunta si la cosa ya esta hecha, y si lo esta la salta.
+
+# Eso importa porque el README es para leer y este es para ejecutar, y si uno corre los dos sin querer no deberia romper nada.
+
 # Al final se corre el smoke test, que es el que dice si quedo bien o si algo falta.
 
 $ErrorActionPreference = "Stop"
 
-$repo = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repo = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $py = Join-Path $repo ".venv\Scripts\python.exe"
 $log = Join-Path $repo "evidencias\logs\01_bootstrap.log"
 New-Item -ItemType Directory -Force -Path (Split-Path $log -Parent) | Out-Null
@@ -64,12 +67,12 @@ escribir ""
 
 # Paso 3, PySpark con las versiones pineadas
 escribir "Paso 3 de 5, PySpark y librerias"
-# La version se lee pasando por cmd con la salida de errores descartada, porque si PySpark
-# todavia no esta el import falla y en PowerShell ese fallo corta el script entero
-# Todas las llamadas a programas de afuera van pasando por cmd con la salida de errores
-# descartada. Es la unica forma que funciona en PowerShell 5.1, porque con
-# ErrorActionPreference en Stop, el 2>&1 de PowerShell convierte la salida de errores del
-# programa en registros de error antes de llegar a la tuberia, y ahi corta el script.
+# La version se lee pasando por cmd con la salida de errores descartada, porque si PySpark todavia no esta el import falla y en PowerShell ese fallo corta el script entero.
+
+# Todas las llamadas a programas de afuera van pasando por cmd con la salida de errores descartada.
+
+# Es la unica forma que funciona en PowerShell 5.1, porque con ErrorActionPreference en Stop, el 2>&1 de PowerShell convierte la salida de errores del programa en registros de error antes de llegar a la tuberia, y ahi corta el script.
+
 # Con pip pasa siempre, porque escribe avisos inocuos ahi, como el de que hay version nueva.
 $versionActual = (cmd /c "`"$py`" -c `"import pyspark; print(pyspark.__version__)`" 2>nul")
 if ("$versionActual".Trim() -eq "3.5.9") {
@@ -77,9 +80,9 @@ if ("$versionActual".Trim() -eq "3.5.9") {
 } else {
     $requisitos = Join-Path $repo "requirements.txt"
     if (Test-Path $requisitos) {
-        # Se instala desde el archivo de requisitos y no desde la lista de base, porque
-        # matplotlib no fija la version de contourpy y pip puede resolvarla distinta en
-        # cada equipo. Con el archivo pineado las dos instalaciones quedan iguales
+        # Se instala desde el archivo de requisitos y no desde la lista de base, porque matplotlib no fija la version de contourpy y pip puede resolvarla distinta en cada equipo.
+
+        # Con el archivo pineado las dos instalaciones quedan iguales.
         escribir "  instalando desde requirements.txt, con las versiones exactas"
         cmd /c "`"$py`" -m pip install -r `"$requisitos`" 2>nul" | Out-Null
     } else {
@@ -130,8 +133,9 @@ if (Test-Path (Join-Path $repo "kafka")) {
     }
     Rename-Item (Join-Path $repo "kafka_2.13-4.1.2") "kafka"
     Remove-Item (Join-Path $repo "kafka.tgz") -Force
-    # La configuración que trae Kafka apunta a /tmp, que es una ruta de Linux y en Windows
-    # deja los datos del broker en la raiz del disco. La dejamos en una carpeta del proyecto
+    # La configuración que trae Kafka apunta a /tmp, que es una ruta de Linux y en Windows deja los datos del broker en la raiz del disco.
+
+    # La dejamos en una carpeta del proyecto.
     $config = Join-Path $repo "kafka\config\server.properties"
     if (Test-Path $config) {
         (Get-Content $config -Raw) -replace 'log\.dirs=.*', "log.dirs=$($repo.Replace('\', '/'))/kafka/kraft-logs" |

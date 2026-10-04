@@ -3,28 +3,29 @@
 __pycache__/
 *.pyc
 *.pyo
+.serena/
 
-# Binarios de Hadoop para Windows, se descargan con bootstrap.ps1 y no se versionan
+# Binarios de Hadoop para Windows, los baja scripts/bootstrap.ps1 y no se versionan
 winutils/
 
-# Datos crudos, estados del streaming y memoria del conector de Kafka
+# Datos crudos, estados del streaming y memoria local del conector de Kafka
 datos/
 checkpoints/
 .ivy2/
 kafka/
 kafka.tgz
 
-# Salidas pesadas dentro de cada arquitectura, los CSV y los PNG sí se versionan
-# porque son la evidencia visible de que el pipeline produjo resultados
-*/salidas/parquet/
-*/salidas/sqlite/
-*/salidas/checkpoints/
+# Salidas pesadas de cada fase, porque los CSV y los PNG sí se versionan
+# y así la evidencia visible de los resultados queda en el historial
+**/salidas/parquet/
+**/salidas/sqlite/
+**/salidas/checkpoints/
 
-# Evidencias regenerables con run_all.ps1
+# Evidencias regenerables, se vuelven a armar con cada corrida del proyecto
 evidencias/logs/
 
-# Las capturas con fecha del entorno se acumulan en cada corrida, versionamos solo la
-# actual que genera 00_capturar_entorno.ps1
+# Las capturas con fecha del entorno se acumulan corrida tras corrida, y solo se
+# versiona la última, la que genera scripts/00_capturar_entorno.ps1
 evidencias/entorno/*-*.txt
 
 # Sistema

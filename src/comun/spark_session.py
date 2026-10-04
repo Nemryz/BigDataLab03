@@ -1,59 +1,78 @@
+"""Arma la sesión de Spark que usan todos los scripts del laboratorio.
+
+Los valores viven en config.py, y acá solo se traducen a la forma en que el constructor de PySpark los recibe.
+
+El archivo importa config en la primera línea a propósito, porque config deja escrito el entorno de Java y de la venv al importarse y ese trabajo tiene que existir antes de que se cargue PySpark.
+"""
+
 import config
 
+# Las opciones que comparten todas las sesiones, guardadas como pares de clave y valor para que sumar una signifique agregar un renglón y nada más.
 
-def get_spark(nombre_app, con_kafka=False):
-    #Devuelve una sesión de Spark configurada según lo que define config.py.
-    from pyspark.sql import SparkSession
+# El orden no importa, Spark las aplica todas antes de pedir la sesión.
+OPCIONES_BASE = (
+    ("spark.driver.memory", config.DRIVER_MEMORY),
+    ("spark.sql.shuffle.partitions", config.SHUFFLE_PARTITIONS),
+    ("spark.sql.session.timeZone", config.ZONA_HORARIA),
+    ("spark.sql.legacy.timeParserPolicy", config.POLITICA_FECHA),
+    ("spark.ui.showConsoleProgress", "false"),
+    ("spark.jars.ivy", str(config.IVY_DIR)),
+)
 
-    # Antes de armar nada dejamos la biblioteca nativa de Windows con el nombre que Hadoop busca
+# Las dos claves entre las que se decide el camino del conector de Kafka
+CLAVE_JARS_LOCALES = "spark.jars"
+CLAVE_JARS_IVY = "spark.jars.packages"
+
+
+def _conector_de_kafka() -> tuple[str, str]:
+    """Devuelve la clave y el valor con los que el conector de Kafka entra a la sesión.
+
+    Hay dos caminos y el que se elige depende de si los jars ya están bajados en la máquina.
+
+    El primero manda a Ivy a buscarlos a Maven, que es como se consiguen la primera vez, pero para eso hace falta internet y además Ivy vuelve a resolver la dependencia en cada arranque, con un cache que caduca a las 24 horas.
+
+    Justo eso es lo que no queremos el día de la defensa, así que si los jars ya están en la carpeta del proyecto se pasan a la JVM por su ruta directa y la sesión ni se entera de que existe una red.
+
+    Si algún día cambia el nombre de alguna de las dos claves, alcanza con tocar el par que devuelve esta función y el resto del módulo sigue igual."""
+    locales = config.jars_kafka_locales()
+    if locales:
+        return CLAVE_JARS_LOCALES, ",".join(locales)
+    return CLAVE_JARS_IVY, config.SPARK_PACKAGES
+
+
+def _opciones_de_java() -> str:
+    # Le pasamos a la JVM dónde está la carpeta de Hadoop y dónde buscar bibliotecas, y sin esto cualquier escritura falla.
+
+    # La dirección tiene que llevar barras normales, porque con contrabarras la JVM se los come al leer la propiedad y cree que la ruta no es absoluta.
+    carpeta = config.HADOOP_HOME_JVM
+    return f"-Dhadoop.home.dir={carpeta} -Djava.library.path={carpeta}/bin"
+
+
+def get_spark(nombre_app: str, con_kafka: bool = False):
+    """Devuelve una sesión de Spark configurada con los valores de config.py.
+
+    El modo local con dos hilos significa que todo corre en esta máquina, sin clúster de verdad, que es lo que corresponde en una demo de casa.
+
+    La conexión con Kafka se pide con un interruptor y no con un parámetro obligatorio, porque hay scripts que solo leen Parquet y para esos el conector es peso muerto.
+
+    El método reutiliza la sesión anterior si ya existía, en vez de abrir un segundo motor que pelee por la memoria con el primero."""
+    # Antes de ararmos dejamos la biblioteca nativa de Windows con el nombre que Hadoop busca
     config.preparar_winutils()
 
-    # Arrancamos el constructor con el nombre de la aplicación, y de ahí en adelante le vamos sumando opciones
+    from pyspark.sql import SparkSession
+
     constructor = SparkSession.builder.appName(nombre_app)
-
-    # El modo local con dos hilos, que en una máquina de la casa significa que todo corre acá sin clúster de verdad
     constructor = constructor.master(config.MASTER)
+    for clave, valor in OPCIONES_BASE:
+        constructor = constructor.config(clave, valor)
 
-    # Le damos 2 GB al proceso principal, que es el que sostiene a los demás, y es el ajuste que evita que la demo se ahogue
-    constructor = constructor.config("spark.driver.memory", config.DRIVER_MEMORY)
-
-    # Bajamos las carpetas de mezcla de 200 a 4, que es el cambio que más se nota en una máquina chica con 7,7 GB
-    constructor = constructor.config("spark.sql.shuffle.partitions", config.SHUFFLE_PARTITIONS)
-
-    # Fijamos la hora porque las ventanas del streaming y las marcas de agua la usan, y si flotara dos corridas no coincidirían
-    constructor = constructor.config("spark.sql.session.timeZone", config.ZONA_HORARIA)
-
-    # Ponemos las fechas en modo tolerante, porque el dataset viene sucio y en modo estricto la sesión se caería de entrada
-    constructor = constructor.config("spark.sql.legacy.timeParserPolicy", config.POLITICA_FECHA)
-
-    # Apagamos la barra de progreso, porque llena los logs de caracteres de control y los deja impossibles de copiar para el informe
-    constructor = constructor.config("spark.ui.showConsoleProgress", "false")
-
-    # Le indicamos dónde dejar los jars que baja de internet, y esta línea es la que nos salva si el día de la defensa no hay red
-    constructor = constructor.config("spark.jars.ivy", str(config.IVY_DIR))
-
-    # El conector de Kafka entra solo si el interruptor está encendido.
-    # Hay dos caminos, y el que se elige depende de si los jars ya están bajados en la máquina.
-    # El primero manda a Ivy a buscarlos a Maven, que es como se consiguen la primera vez, pero
-    # para eso hace falta internet y además Ivy vuelve a resolver la dependencia en cada
-    # arranque, con un cache que caduca a las 24 horas. Justo eso es lo que no queremos el día
-    # de la defensa, así que si los jars ya están en la carpeta del proyecto se pasan a la JVM
-    # por su ruta directa y la sesión ni se entera de que existe una red.
     if con_kafka:
-        jars_locales = config.jars_kafka_locales()
-        if jars_locales:
-            constructor = constructor.config("spark.jars", ",".join(jars_locales))
-        else:
-            constructor = constructor.config("spark.jars.packages", config.SPARK_PACKAGES)
+        clave, valor = _conector_de_kafka()
+        constructor = constructor.config(clave, valor)
 
-    # Le pasamos a la JVM dónde está la carpeta de Hadoop y dónde buscar bibliotecas, y sin esto cualquier escritura falla
-    
-    # Ojo que la dirección tiene que llevar barras normales, porque con contrabarras la JVM se los come al leer la propiedad
-    opciones_java = "-Dhadoop.home.dir=" + config.HADOOP_HOME_JVM
-    opciones_java += " -Djava.library.path=" + config.HADOOP_HOME_JVM + "/bin"
-    constructor = constructor.config("spark.driver.extraJavaOptions", opciones_java)
+    constructor = constructor.config("spark.driver.extraJavaOptions", _opciones_de_java())
 
-    # Pedimos la sesión armada, y el método reutiliza la anterior si ya existía en vez de abrir un segundo motor que pelee por la memoria
+    # Pedimos la sesión armada
     spark = constructor.getOrCreate()
 
     # Subimos el nivel de los mensajes a WARNING, para que la consola se lea limpia y los logs sirvan como evidencia legible

@@ -1,33 +1,35 @@
 # Arranca el broker de Kafka y espera a que este listo.
-# El broker se levanta en segundo plano y su salida completa se guarda en un log, porque
-# esa salida es la evidencia de que arranco bien, y porque es la unica forma de saber que
-# esta vivo sin adivinar. El script no adivina, espera a leer la linea exacta que dice que
-# el servidor termino de arrancar, y si no aparece en el tiempo dado se declara fallido.
-# Se puede correr las veces que haga falta, si el broker ya esta vivo lo dice y no levanta
-# un segundo, porque dos brokers en el mismo puerto no conviven.
+
+# El broker se levanta en segundo plano y su salida completa se guarda en un log, porque esa salida es la evidencia de que arranco bien, y porque es la unica forma de saber que esta vivo sin adivinar.
+
+# El script no adivina, espera a leer la linea exacta que dice que el servidor termino de arrancar, y si no aparece en el tiempo dado se declara fallido.
+
+# Se puede correr las veces que haga falta, si el broker ya esta vivo lo dice y no levanta un segundo, porque dos brokers en el mismo puerto no conviven.
 
 $ErrorActionPreference = "Stop"
 
-$repo = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repo = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $bat = Join-Path $repo "kafka\bin\windows"
 $log = Join-Path $repo "evidencias\logs\03_kafka_broker.log"
 $puerto = 9092
 
-# Kafka necesita un Java y no lo busca solo, asi que se lo pasamos desde donde el proyecto
-# ya lo tiene resuelto, que es la variable que escribimos al instalar el JDK
+# Kafka necesita un Java y no lo busca solo, asi que se lo pasamos desde donde el proyecto ya lo tiene resuelto, que es la variable que escribimos al instalar el JDK
 $javaHome = [Environment]::GetEnvironmentVariable('JAVA_HOME', 'User')
 if (-not $javaHome) {
-    Write-Host "No esta definido JAVA_HOME, corre bootstrap.ps1 primero"
+    Write-Host "No esta definido JAVA_HOME, corre scripts/bootstrap.ps1 primero"
     exit 1
 }
 $env:JAVA_HOME = $javaHome
 $env:Path = "$javaHome\bin;$env:Path"
 
 # Fijamos la memoria del broker antes de arrancarlo, y no es solo por querer menos memoria.
-# El script de arranque de Kafka usa wmic para preguntar si el sistema es de 32 o de 64
-# bits, y wmic ya no viene en las versiones nuevas de Windows 11. Cuando falta, el script
-# escribe un error y el broker no levanta. Fijando la variable nosotros, el bloque que
-# llama a wmic ni se ejecuta, porque la condición de que esté vacía da falso.
+
+# El script de arranque de Kafka usa wmic para preguntar si el sistema es de 32 o de 64 bits, y wmic ya no viene en las versiones nuevas de Windows 11.
+
+# Cuando falta, el script escribe un error y el broker no levanta.
+
+# Fijando la variable nosotros, el bloque que llama a wmic ni se ejecuta, porque la condición de que esté vacía da falso.
+
 # De paso controlamos la memoria, que es lo que nos interesa en una máquina de 7,7 GB.
 $env:KAFKA_HEAP_OPTS = "-Xmx256M -Xms128M"
 
@@ -39,21 +41,19 @@ if ($escuchando) {
 }
 
 if (-not (Test-Path (Join-Path $repo "kafka\kraft-logs\meta.properties"))) {
-    # El almacenamiento viene sin formatear cada vez que se reinstala Kafka, y sin eso el
-    # broker no arranca. Se formatea acá en vez de dejar un paso manual suelto, porque el
-    # README le dice al lector que esto lo hace este script, y una instrucción que no coincide
-    # con lo que hace el código es el tipo de cosa que cuesta encontrar el día de la defensa.
-    # El storage es un directorio de datos y no de configuración, así que borrarlo no pierde
-    # nada del proyecto
+    # El almacenamiento viene sin formatear cada vez que se reinstala Kafka, y sin eso el broker no arranca.
+
+    # Se formatea acá en vez de dejar un paso manual suelto, porque el README le dice al lector que esto lo hace este script, y una instrucción que no coincide con lo que hace el código es el tipo de cosa que cuesta encontrar el día de la defensa.
+
+    # El storage es un directorio de datos y no de configuración, así que borrarlo no pierde nada del proyecto.
     $env:KAFKA_HEAP_OPTS = "-Xmx256M -Xms128M"
     $config = Join-Path $repo "kafka\config\server.properties"
 
     Write-Host "Formateando el almacenamiento de Kafka"
 
-    # El identificador del cluster se genera en el momento, porque no es un valor que se
-    # pueda inventar ni recordar: es un identificador que Kafka pide que tenga forma de uuid.
-    # Este comando imprime primero un aviso de su propio log4j que no significa un error, así
-    # que se toma la última línea de salida y no la primera
+    # El identificador del cluster se genera en el momento, porque no es un valor que se pueda inventar ni recordar, es un identificador que Kafka pide que tenga forma de uuid.
+
+    # Este comando imprime primero un aviso de su propio log4j que no significa un error, así que se toma la última línea de salida y no la primera.
     $uuid = (cmd /c "`"$($repo)\kafka\bin\windows\kafka-storage.bat`" random-uuid 2>nul" |
         Where-Object { $_ -and $_.Trim() } | Select-Object -Last 1)
     $uuid = "$uuid".Trim()
@@ -62,10 +62,9 @@ if (-not (Test-Path (Join-Path $repo "kafka\kraft-logs\meta.properties"))) {
         exit 1
     }
 
-    # El flag --standalone es obligatorio en Kafka 4.x cuando el nodo es broker y controlador
-    # a la vez y no hay una lista de votantes declarada, que es justo nuestra configuración.
-    # Sin él el formateo se corta pidiendo uno de esos tres flags y no escribe nada, y encima
-    # devuelve el código cero, así que un script que solo mirara el código diría que salió bien
+    # El flag --standalone es obligatorio en Kafka 4.x cuando el nodo es broker y controlador a la vez y no hay una lista de votantes declarada, que es justo nuestra configuración.
+
+    # Sin él el formateo se corta pidiendo uno de esos tres flags y no escribe nada, y encima devuelve el código cero, así que un script que solo mirara el código diría que salió bien.
     $salida = cmd /c "`"$($repo)\kafka\bin\windows\kafka-storage.bat`" format -t $uuid -c `"$config`" --standalone 2>&1"
     $salida | ForEach-Object { Write-Host "  $_" }
 
@@ -96,9 +95,9 @@ $proceso = Start-Process -FilePath (Join-Path $bat "kafka-server-start.bat") `
 Write-Host "  proceso   $($proceso.Id)"
 Write-Host "  esperando a que el servidor levante"
 
-# Se lee el log cada medio segundo hasta que aparezca la linea de arranque o se agote el
-# tiempo. El limite esta porque un proceso colgado no devuelve el control, y un script
-# bloqueado en un laboratorio es peor que uno que falla con un mensaje claro
+# Se lee el log cada medio segundo hasta que aparezca la linea de arranque o se agote el tiempo.
+
+# El limite esta porque un proceso colgado no devuelve el control, y un script bloqueado en un laboratorio es peor que uno que falla con un mensaje claro.
 $limite = 60
 $esperado = 0
 for ($i = 0; $i -lt $limite; $i++) {
