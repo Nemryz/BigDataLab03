@@ -129,22 +129,7 @@ El arranque desde cero se hace con scripts\bootstrap.ps1, un script idempotente 
 
 El flujo completo se ve así, desde la foto de los datos hasta la consulta final:
 
-```text
-01_descargar.py           02_productor.py
-foto + manifiesto    -->  topic de Kafka
-                                 |
-                +----------------+----------------+
-                |                                 |
-       04_velocidad.py                    06_lotes.py
-       ventana de sesión                  topic de punta a punta
-       Parquet incremental                vistas Parquet + CSV
-                |                                 |
-                +----------------+----------------+
-                                 |
-                          07_servicio.py
-                          SQLite aire.db
-                          cruce de las dos capas
-```
+[HACER UN DIAGRAMA CON draw.io]
 
 La ingesta es una sola y empieza con la foto, que trae lecturas horarias de PM2.5, PM10 y NO2 en cuatro ciudades chilenas, Santiago, Mendoza, Valparaíso y Puerto Montt, y el umbral de 25 microgramos por m³ que marca la hora contaminada viene del límite diario que sugiere la Organización Mundial de la Salud.
 
