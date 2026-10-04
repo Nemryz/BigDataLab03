@@ -97,6 +97,42 @@ Ese script se apoya en wmic y las versiones nuevas de Windows 11 ya no lo traen,
 
 No se debe cerrar la ventana de la terminal mientras el productor está mandando mensajes, porque el broker corre en segundo plano pero los avisos de la corrida se pierden con ella.
 
+## Levantar Kafka con Docker
+
+Docker es opcional en el enunciado y en esta máquina no está instalado, así que esta vía quedó escrita pero no probada.
+
+La composición está en `docker/docker-compose.yml` y levanta un solo servicio, el broker de Kafka 4.1.2 en modo KRaft dentro de un contenedor.
+
+```powershell
+cd docker
+docker compose up -d
+```
+
+El servicio publica el puerto 9092 en el host, así que el resto del flujo no cambia y el productor sigue apuntando a `localhost:9092`.
+
+Para ver si ya quedó sano:
+
+```powershell
+docker compose ps
+docker compose logs kafka
+```
+
+La columna STATUS del primer comando debe terminar en `running` con health `healthy`, y en los logs aparece la línea del servidor terminado de arrancar.
+
+Para bajarlo:
+
+```powershell
+docker compose down
+```
+
+No se debe levantar el contenedor y el broker de Windows al mismo tiempo, porque los dos quieren el puerto 9092 y el segundo falla con un error de puerto ocupado que parece un fallo del script y no lo es.
+
+No se debe usar `docker compose down -v` sin querer borrar los datos, porque esa variante elimina el volumen nombrado donde el contenedor guarda los topics.
+
+Si docker no está instalado, el error de que el comando no se reconoce es la señal de que esta vía no aplica en esa máquina, y el arranque sigue siendo `scripts\start_kafka.ps1`.
+
+Si la imagen `apache/kafka:4.1.2` no se puede bajar, conviene revisar la conexión antes que el archivo, porque la etiqueta existe en Docker Hub y el compose la pide tal cual.
+
 ## Comprobar que el entorno sigue sano
 
 La verificación rápida tiene dos pasos y se corren desde la raíz.

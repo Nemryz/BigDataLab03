@@ -16,7 +16,7 @@ Este documento describe lo que ya está construido y lo que falta, con los coman
 | 2.2 | Capa de velocidad con Spark Structured Streaming | hecha |
 | 2.3 | Capa de lotes con Spark batch | hecha |
 | 2.4 | Servicio de consulta sobre SQLite | hecha |
-| 2.5 | Docker | pendiente |
+| 2.5 | Docker | escrita sin ejecutar |
 | 2.6 | Verificación Docker | pendiente |
 | 2.7 | Documentación final | pendiente |
 | 3 | Informe, tabla comparativa y presentación | pendiente |
@@ -48,7 +48,7 @@ El orden de carpetas está pensado para lo que se va a crear después.
 | lambda/02-velocidad | Streaming de Spark | 2.2 |
 | lambda/03-lotes | Lectura batch del topic y vistas consolidadas | 2.3 |
 | lambda/04-servicio | Capa de servicio sobre SQLite | 2.4 |
-| docker | Composición de contenedores para levantar el laboratorio en otra máquina | 2.5 |
+| docker | Composición de Docker con el broker de Kafka en contenedor | 2.5 |
 | lambda/salidas | Resultados pesados de cada fase | 2.x |
 | evidencias | Logs, capturas de entorno, gráficos y pantallazos | todas |
 | docs | Informe técnico, tabla comparativa y guion | 3 |
@@ -70,6 +70,7 @@ Las carpetas vacías no viajan con un clon, así que la función asegurar_carpet
 | winutils | 3.3.5 | el binario nativo que Windows necesita para escribir |
 | Apache Kafka | 4.1.2 | broker en modo KRaft, sin ZooKeeper |
 | kafka-python | 3.0.11 | productor y consumidor ligeros para la ingesta |
+| Docker | 20.10.4 o posterior | opcional en el enunciado, solo para la composición de la fase 2.5 |
 
 La máquina de referencia tiene 7,7 GB de memoria, y por eso el driver de Spark arranca con 2 GB y las carpetas de mezcla bajan de 200 a 4.
 
@@ -374,6 +375,36 @@ scripts\bootstrap.ps1
 
 Recrea la venv e instala las versiones pineadas de requirements.txt.
 
+## Docker
+
+Docker es opcional en el enunciado, y en la máquina de referencia no está instalado, así que la composición se escribió y se validó como YAML pero no se llegó a levantar.
+
+Lo que hay es `docker/docker-compose.yml`, una composición mínima con un solo servicio, el broker de Kafka 4.1.2 en modo KRaft dentro de un contenedor, con el puerto 9092 publicado y un volumen nombrado para los datos.
+
+La versión de la imagen coincide con la instalación local que usa el resto del flujo, así que el bootstrap server sigue siendo `localhost:9092` y ningún script cambia.
+
+En una máquina con Docker 20.10.4 o posterior se levanta desde la raíz:
+
+```powershell
+cd docker
+docker compose up -d
+docker compose ps
+```
+
+Cuando la columna STATUS del ps dice `healthy` el broker ya acepta consultas, y desde ahí el flujo completo corre igual que con `scripts\start_kafka.ps1`.
+
+Para bajarlo:
+
+```powershell
+docker compose down
+```
+
+La variante `docker compose down -v` borra también el volumen de datos, y eso solo se hace cuando se quiere empezar de cero.
+
+No debe levantarse la composición y el broker de Windows al mismo tiempo, porque los dos pelean por el puerto 9092 y el segundo arranque falla con un error de puerto ocupado que no dice de quién es la culpa.
+
+Mientras tanto, en esta máquina el arranque real sigue siendo `scripts\start_kafka.ps1`, y la corrida de Docker queda para la fase 2.6.
+
 ## Documentos
 
 | Documento | Rúbrica |
@@ -413,3 +444,4 @@ Esto se documenta a propósito, porque es lo que vale el criterio de resolución
 | Aviso de desuso por is_datetime64tz_dtype | PySpark llama al método que pandas avisó que va a quitar al pasar un DataFrame a pandas | no convertir los avisos en error en el script que usa toPandas |
 | La sesión de Spark no arranca o se queda colgado en el arranque | la máquina quedó sin memoria libre después de varias corridas seguidas y la JVM queda a medias | esperar a que se libere memoria, cerrar lo que esté pesando y reintentar, la corrida sale igual |
 | El servicio dice que falta un CSV | el 05 o el 06 no corrieron o alguien limpió las salidas | correr las dos capas anteriores en orden, la base se reconstruye sola en la corrida siguiente |
+| docker compose no corre en la máquina de referencia | no hay Docker instalado y el enunciado lo marca como opcional | validar la sintaxis del compose con un parser de YAML y dejar la corrida para la fase 2.6 en una máquina con Docker |
