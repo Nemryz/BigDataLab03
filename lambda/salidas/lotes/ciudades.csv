@@ -1,5 +1,5 @@
 ciudad,ciudad_nombre,lecturas,horas_sobre_umbral,pct_sobre_umbral,pm2_5_prom,pm2_5_max,pm10_prom,pm10_max,nitrogen_dioxide_prom,nitrogen_dioxide_max
-mendoza,Mendoza,168,0,0.0,6.29,23.0,7.17,23.9,8.53,44.4
-puerto_montt,Puerto Montt,168,0,0.0,3.08,11.7,4.09,13.9,2.12,13.6
-santiago,Santiago,168,122,72.62,38.07,93.8,40.4,95.7,40.71,103.4
-valparaiso,Valparaíso,168,6,3.57,11.27,34.0,13.41,35.0,7.8,24.8
+mendoza,Mendoza,168,0,0.0,6.35,23.0,7.35,23.9,8.49,44.4
+puerto_montt,Puerto Montt,168,0,0.0,3.16,11.7,4.28,13.9,2.03,13.6
+santiago,Santiago,168,107,63.69,32.02,68.7,34.63,70.1,37.08,103.4
+valparaiso,Valparaíso,168,4,2.38,10.88,34.0,13.38,35.0,7.54,24.8
