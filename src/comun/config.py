@@ -119,6 +119,11 @@ DRIVER_MEMORY = "2g"
 # Las carpetas donde Spark deposita los datos que debe mezclar, en 4 y no en las 200 del valor por omisión para no quedarnos sin memoria
 SHUFFLE_PARTITIONS = "4"
 
+# El tope de mensajes que Spark le saca a Kafka de una vez, y con eso la corrida queda repartida en varios lotes sucesivos.
+
+# Sin tope el streaming se traga todo el topic en un solo lote, que técnicamente también es streaming pero no deja ver nada, en cambio con este número se observa cómo cada lote amplía las sesiones que ya estaban abiertas.
+MAX_OFFSETS_POR_LOTE = "100"
+
 # Fijamos la hora para que las ventanas del streaming agrupen siempre igual, porque si flotara dos corridas darían horas distintas
 ZONA_HORARIA = "America/Santiago"
 
@@ -197,8 +202,10 @@ SEED = 20260928
 # Se deja la lista igual de todas formas para que los scripts no tengan que cambiar si alguna vez se agrega una carpeta.
 ZONAS_DATOS = ("raw",)
 
-# La carpeta de resultados de cada fase, y se llama igual en todas para que el informe pueda compararlas sin traducir nombres
-CARPETA_SALIDAS = "salidas"
+# La carpeta donde cada fase deja sus resultados, y se llama igual en todas para que el informe pueda compararlas sin traducir nombres.
+
+# Lo que pesa, como el Parquet, queda fuera del repositorio con el gitignore, en cambio el CSV de episodios sí se versiona porque es la evidencia que se muestra.
+SALIDAS = RAIZ / "lambda" / "salidas"
 
 # Las subcarpetas dentro de las evidencias.
 
@@ -225,7 +232,7 @@ def asegurar_carpetas() -> None:
     Sin esta función el primer script se caería al intentar escribir en una carpeta fantasma.
 
     Recorre las listas declaradas más arriba y le pide a cada carpeta que se cree si hace falta, de modo que el día que aparezca una nueva alcanza con agregarla a la tupla correspondiente."""
-    requeridas = [*(DATOS / zona for zona in ZONAS_DATOS), CHECKPOINTS, IVY_DIR, LOGS]
+    requeridas = [*(DATOS / zona for zona in ZONAS_DATOS), CHECKPOINTS, IVY_DIR, LOGS, SALIDAS]
     requeridas += [EVIDENCIAS / nombre for nombre in SUBCARPETAS_EVIDENCIAS]
     for carpeta in requeridas:
         carpeta.mkdir(parents=True, exist_ok=True)

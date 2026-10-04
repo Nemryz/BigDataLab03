@@ -13,7 +13,7 @@ Este documento describe lo que ya está construido y lo que falta, con los coman
 | 0 | Limpieza del repositorio y scripts de arranque | hecha |
 | 1 | Biblioteca compartida, configuración y prueba de humo | hecha |
 | 2.1 | Descarga de la foto, productor de Kafka y verificación | hecha |
-| 2.2 | Capa de velocidad con Spark Structured Streaming | pendiente |
+| 2.2 | Capa de velocidad con Spark Structured Streaming | hecha |
 | 2.3 | Capa de lotes con Spark batch | pendiente |
 | 2.4 | Servicio de consulta sobre SQLite | pendiente |
 | 3 | Informe, tabla comparativa y presentación | pendiente |
@@ -132,12 +132,18 @@ Se corren en orden desde la raíz del repositorio.
 ```powershell
 scripts\start_kafka.ps1
 & .venv\Scripts\python.exe lambda\01-ingesta\01_descargar.py aire_horario
-& .venv\Scripts\python.exe lambda\01-ingesta\02_productor.py --mensajes 30 --limpiar
+& .venv\Scripts\python.exe lambda\01-ingesta\02_productor.py --mensajes 672 --segundos 0.02 --limpiar
 & .venv\Scripts\python.exe lambda\01-ingesta\03_verificar.py
+& .venv\Scripts\python.exe lambda\02-velocidad\04_velocidad.py --limpiar
+& .venv\Scripts\python.exe lambda\02-velocidad\05_resumen_velocidad.py
 scripts\stop_kafka.ps1
 ```
 
 La descarga se hace una sola vez y después el pipeline lee del disco.
+
+Con --segundos 0.02 la semana entera tarda unos dieciséis segundos en salir, que es lo justo para que la cola se vea llena sin hacer esperar a nadie.
+
+Para una corrida más corta que sirva de prueba basta con --mensajes 30 y se omite el --segundos.
 
 Si el productor llamara a la API en cada corrida, cada vez traería datos distintos, el hash nunca cuadraría y un corte de internet el día de la defensa dejaría la demo sin sostén.
 
@@ -206,6 +212,55 @@ Antes de calcular nada, el verificador revisa que cada evento traiga los campos 
 Un evento incompleto corta la corrida con aviso, porque el hash igual se calcula sobre datos faltantes y sale un número que parece correcto.
 
 La semilla fija de 20260928 hace que dos corridas del mismo proceso generen los mismos datos, y el resto depende de no introducir ningún valor que dependa de la fecha de hoy.
+
+## La capa de velocidad
+
+La capa de velocidad es el camino rápido de la arquitectura Lambda, el que toma el topic y devuelve episodios de contaminación sin esperar a que termine nada.
+
+Se apoya en una ventana de sesión, que es la pieza que conviene entender antes de mirar los comandos.
+
+Una ventana de sesión agrupa los eventos que llegan seguidos y se cierra recién cuando pasa el tiempo de separación sin que llegue nada más, de modo que el agrupamiento no tiene un tamaño fijo sino que crece con el dato.
+
+Con una ventana fija de una hora cada hora suelta sería un episodio y las rachas se cortarían en la mitad, en cambio con la de sesión el episodio se arma solo y termina justo donde el aire deja de estar sucio.
+
+La separación elegida es de dos horas, o sea si pasan tres horas sin ninguna lectura contaminada la racha se da por cerrada y empieza otra.
+
+Se agrupa por ciudad, así que las rachas de Santiago no se mezclan con las de Mendoza, y solo entran las lecturas que superan el umbral.
+
+La marca de agua va cuatro horas por delante de la hora de lectura y su trabajo es otro, decide cuándo Spark puede olvidar una sesión que ya no va a crecer más.
+
+Ese retardo es el doble de la separación a propósito, porque si quedara más cerca que la separación la ventana podría cerrar una sesión que todavía estaba abierta.
+
+Cada lote le saca a Kafka como máximo cien mensajes, así que la semana entra en siete lotes y en la consola se ve el número de sesiones vivas subir de tres a siete a medida que avanza la cola.
+
+El modo de salida es el completo y no el de actualización, que fue el primero que se probó.
+
+Spark lo rechaza con un error claro, la ventana de sesión se apoya en la marca de agua y el modo de actualización no sabe cuándo cerrar la fila.
+
+El modo de anexar tampoco serviría, porque solo suelta una sesión cuando la marca de agua ya pasó de su fin y como esa marca va cuatro horas por detrás del dato, las sesiones de las últimas horas del topic no se escribirían nunca.
+
+En el modo completo cada lote vuelve a mandar todas las sesiones que siguen vivas, así que el mismo episodio aparece muchas veces en el Parquet con más lecturas encima cada vez.
+
+Por eso el segundo script de la fase se llama resumen y no consulta.
+
+05_resumen_velocidad.py se queda con la versión más avanzada de cada episodio, escribe un CSV de una fila por episodio dentro de lambda/salidas/velocidad, imprime el recuento por ciudad, señala el episodio más largo y el más intenso y deja un gráfico de la semana en evidencias/graficos.
+
+También calcula un SHA-256 sobre la ciudad, el comienzo, el fin, las lecturas y los picos de contaminantes, con el mismo criterio que el verificador de la ingesta.
+
+Dos corridas que procesaron el mismo topic dan el mismo hash, que es la manera de probar que la capa de velocidad es reproducible y no una casualidad de la corrida.
+
+Para correrla, con el broker arriba y el productor ya ejecutado:
+
+```powershell
+& .venv\Scripts\python.exe lambda\02-velocidad\04_velocidad.py --limpiar
+& .venv\Scripts\python.exe lambda\02-velocidad\05_resumen_velocidad.py
+```
+
+El interruptor limpiar borra el checkpoint y el Parquet de la corrida anterior, y hace falta apretarlo cada vez que se vuelve a mandar el topic desde cero, porque si no Spark recuerda haber leído todo y en la corrida nueva no procesa nada.
+
+La semana completa deja 128 horas sobre el umbral agrupadas en siete episodios, cinco en Santiago y dos en Valparaíso.
+
+Mendoza y Puerto Montt no pasaron el umbral ninguna hora de esa semana, así que no aparecen en el gráfico, y eso también es un resultado y no un fallo del proceso.
 
 ## Cómo se registran las corridas
 
@@ -281,3 +336,6 @@ Esto se documenta a propósito, porque es lo que vale el criterio de resolución
 | La limpieza se cae con acceso denegado | Kafka deja los archivos de checkpoint marcados como solo lectura y Windows no deja borrarlos | quitar el atributo de solo lectura antes de borrar la carpeta |
 | El arranque del broker deja el productor colgado | el proceso largo hereda el manijón de la salida y la lectura nunca llega a su fin | leer la salida en un hilo aparte y con un tiempo tope |
 | Aviso de desuso por value_deserializer | se le pasó una función en vez de una deserializadora de la librería | usar JsonSerializer del paquete kafka.serializer |
+| Update output mode not supported for session window | la ventana de sesión depende de la marca de agua y ese modo no sabe cuándo cerrar la fila | usar el modo completo y deduplicar en el resumen |
+| ERROR ShutdownHookManager al cerrar Spark | Windows no puede borrar la carpeta temporal mientras la JVM todavía tiene los jars abiertos | es ruido del cierre, el resumen ya se escribió antes de que aparezca |
+| Aviso de desuso por is_datetime64tz_dtype | PySpark llama al método que pandas avisó que va a quitar al pasar un DataFrame a pandas | no convertir los avisos en error en el script que usa toPandas |

@@ -144,6 +144,38 @@ No se debe regenerar la foto de datos para probar cosas, el rango es fijo del 20
 
 No se debe correr --limpiar cuando haya datos que se quieran conservar, porque vacía toda la carpeta de almacenamiento del broker y no solo el topic.
 
+## Correr la capa de velocidad
+
+Se corren los dos scripts de la fase después del productor y sin apagar el broker en el medio.
+
+```powershell
+& .venv\Scripts\python.exe lambda\01-ingesta\02_productor.py --mensajes 672 --segundos 0.02 --limpiar
+& .venv\Scripts\python.exe lambda\02-velocidad\04_velocidad.py --limpiar
+& .venv\Scripts\python.exe lambda\02-velocidad\05_resumen_velocidad.py
+```
+
+El productor manda la semana entera a ritmo acelerado para que la cola esté llena cuando arranca el streaming, y con --limpiar el topic vuelve a cero antes de empezar.
+
+04_velocidad.py es el que lee, agrupa y escribe, y debe imprimir siete líneas de lote, una por cada cien mensajes que le saca a Kafka más el resto.
+
+El recuento que cierra el script debe dar `Lotes 7`, `Filas en disco 37` y `Episodios 7`.
+
+Las 37 filas son las siete sesiones contadas una vez por cada lote en que siguió viva, y por eso son más que los episodios de verdad.
+
+05_resumen_velocidad.py es el que ordena el desorden y debe decir `Episodios 7` y `Ciudades santiago=5, valparaiso=2`.
+
+También señala el episodio más largo, que en la corrida de referencia es el de Santiago desde 2026-09-29 12:00 con 74 horas seguidas, y el más intenso, con un pico de 93.8 ug/m3.
+
+Al final imprime el SHA-256 de los episodios, que en la corrida de referencia es 66654610b6057dd0dcbe296270963eabc20f1138649526928058a22cea8328c2 y debe salir igual todas las veces que se repita la secuencia completa.
+
+El CSV queda en lambda/salidas/velocidad/episodios.csv y el gráfico en evidencias/graficos/velocidad_episodios.png.
+
+No se debe correr 04_velocidad.py sin el --limpiar cuando se volvió a mandar el topic desde cero, porque el checkpoint viejo le dice a Spark que ya leyó todo y en la corrida nueva no procesa nada.
+
+No se debe correr 05_resumen_velocidad.py con los avisos convertidos en error, PySpark usa un método de pandas que ya está marcado como obsoleto y el script se cae en la conversión sin que nada esté roto.
+
+No se debe borrar la carpeta checkpoints/velocidad a mano mientras la corrida sigue corriendo, la limpieza se hace con el --limpiar apagado el streaming.
+
 ## Los logs
 
 Cada comando escribe su propia salida en evidencias/logs y el nombre del archivo indica qué lo produjo.
@@ -180,6 +212,10 @@ No se debe tocar la carpeta datos/raw a mano ni borrarla sin antes anotar el has
 
 No se debe mirar la carpeta datos/raw con un patrón comodín desde un script, se lee siempre por el manifiesto, que es quien sabe qué archivos hay.
 
+No se debe convertir todos los avisos en error en los scripts que pasan un DataFrame a pandas, PySpark avisa por un método que pandas ya marcó como obsoleto y el script se cae sin que haya nada malo.
+
+No se debe dejar el Parquet de la capa de velocidad sin su CSV al lado, el Parquet guarda episodios repetidos a propósito y el CSV es el que tiene una fila por episodio.
+
 ## Errores típicos y qué hacer
 
 Si el productor dice que el broker no está corriendo, se enciende con start_kafka.ps1 y se vuelve a probar.
@@ -197,3 +233,11 @@ Si PySpark no aparece en el import, el pip que corrió pertenecía al otro inté
 Si la escritura de Parquet falla con un error que parece una ruta mal escrita, en realidad faltan permisos y hay que revisar winutils.
 
 Si algo falla y no se sabe dónde, se empieza por la prueba de humo, porque ordena las comprobaciones de menor a mayor dificultad y marca en qué punto se rompió.
+
+Si 04_velocidad.py revienta con Update output mode not supported for session window, no es la máquina, es que alguien cambió el modo de salida, la capa va en modo completo.
+
+Si al terminar Spark aparece ERROR ShutdownHookManager sobre una carpeta temporal, es Windows que no puede borrar la carpeta mientras la JVM todavía tiene los jars abierta, el resumen ya se escribió antes.
+
+Si 05_resumen_velocidad.py dice que no existe el Parquet, es porque 04_velocidad.py no corrió o porque un --limpiar posterior lo borró.
+
+Si el CSV sale con menos episodios de los esperados, se compara contra el recuento de episodios del 04, porque los dos cuentan por ciudad y hora de inicio y deberían dar el mismo número.

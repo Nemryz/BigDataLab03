@@ -17,9 +17,9 @@ kafka.tgz
 
 # Salidas pesadas de cada fase, porque los CSV y los PNG sí se versionan
 # y así la evidencia visible de los resultados queda en el historial
-**/salidas/parquet/
-**/salidas/sqlite/
-**/salidas/checkpoints/
+**/salidas/**/parquet/
+**/salidas/**/sqlite/
+**/salidas/**/checkpoints/
 
 # Evidencias regenerables, se vuelven a armar con cada corrida del proyecto
 evidencias/logs/
