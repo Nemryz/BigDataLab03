@@ -133,6 +133,37 @@ Si docker no está instalado, el error de que el comando no se reconoce es la se
 
 Si la imagen `apache/kafka:4.1.2` no se puede bajar, conviene revisar la conexión antes que el archivo, porque la etiqueta existe en Docker Hub y el compose la pide tal cual.
 
+## Verificar el compose sin Docker
+
+La composición se puede revisar en esta máquina aunque no haya Docker, porque en una primera pasada lo que casi siempre falla es el archivo y no el motor de contenedores.
+
+El verificador vive en `docker/verificar_compose.py` y se corre con la venv desde la raíz, igual que el resto de los scripts.
+
+```powershell
+& .venv\Scripts\python.exe docker\verificar_compose.py
+```
+
+Lee el compose con PyYAML y pasa trece comprobaciones, que el YAML parsea, que el servicio kafka existe, que la imagen es `apache/kafka:4.1.2`, que el puerto 9092 queda publicado, que el nodo hace de broker y de controlador a la vez, que el cliente anuncia el mismo broker que usa el proyecto, que las claves de KRaft están todas, que los factores de replicación están en uno, que el volumen está declarado y montado donde Kafka escribe, y que el healthcheck consulta al broker.
+
+Cada comprobación sale con su nombre y con OK o FALLO, así que el fallo apunta a la pieza y no deja adivinando.
+
+La salida completa queda como evidencia en `evidencias/logs/08_verificacion_compose.log` con el encabezado de siempre.
+
+Para confirmar que la imagen existe antes de viajar a una máquina con Docker:
+
+```powershell
+$r = Invoke-WebRequest -Uri "https://hub.docker.com/v2/repositories/apache/kafka/tags/4.1.2" -UseBasicParsing
+$r.StatusCode
+```
+
+Debe devolver 200, que es la respuesta de que la etiqueta está publicada.
+
+No se debe tomar esta verificación como prueba de que el contenedor levanta, porque no levanta nada, solo revisa el archivo, y la corrida real es `docker compose up` en una máquina con Docker.
+
+No se debe correr el verificador con el python del PATH, porque ese intérprete no tiene el proyecto ni sus paquetes y el error que devuelve no explica nada.
+
+Si el script se cae con `ModuleNotFoundError: No module named yaml`, es que la venv no tiene PyYAML todavía, y se arregla reinstalando las versiones pineadas con `& .venv\Scripts\python.exe -m pip install -r requirements.txt`.
+
 ## Comprobar que el entorno sigue sano
 
 La verificación rápida tiene dos pasos y se corren desde la raíz.

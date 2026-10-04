@@ -17,7 +17,7 @@ Este documento describe lo que ya está construido y lo que falta, con los coman
 | 2.3 | Capa de lotes con Spark batch | hecha |
 | 2.4 | Servicio de consulta sobre SQLite | hecha |
 | 2.5 | Docker | escrita sin ejecutar |
-| 2.6 | Verificación Docker | pendiente |
+| 2.6 | Verificación Docker | verificada sin Docker |
 | 2.7 | Documentación final | pendiente |
 | 3 | Informe, tabla comparativa y presentación | pendiente |
 
@@ -48,7 +48,7 @@ El orden de carpetas está pensado para lo que se va a crear después.
 | lambda/02-velocidad | Streaming de Spark | 2.2 |
 | lambda/03-lotes | Lectura batch del topic y vistas consolidadas | 2.3 |
 | lambda/04-servicio | Capa de servicio sobre SQLite | 2.4 |
-| docker | Composición de Docker con el broker de Kafka en contenedor | 2.5 |
+| docker | Composición de Docker con el broker de Kafka y su verificador | 2.5 y 2.6 |
 | lambda/salidas | Resultados pesados de cada fase | 2.x |
 | evidencias | Logs, capturas de entorno, gráficos y pantallazos | todas |
 | docs | Informe técnico, tabla comparativa y guion | 3 |
@@ -71,6 +71,7 @@ Las carpetas vacías no viajan con un clon, así que la función asegurar_carpet
 | Apache Kafka | 4.1.2 | broker en modo KRaft, sin ZooKeeper |
 | kafka-python | 3.0.11 | productor y consumidor ligeros para la ingesta |
 | Docker | 20.10.4 o posterior | opcional en el enunciado, solo para la composición de la fase 2.5 |
+| PyYAML | 6.0.2 | lee el compose en el verificador de la fase 2.6 |
 
 La máquina de referencia tiene 7,7 GB de memoria, y por eso el driver de Spark arranca con 2 GB y las carpetas de mezcla bajan de 200 a 4.
 
@@ -403,7 +404,27 @@ La variante `docker compose down -v` borra también el volumen de datos, y eso s
 
 No debe levantarse la composición y el broker de Windows al mismo tiempo, porque los dos pelean por el puerto 9092 y el segundo arranque falla con un error de puerto ocupado que no dice de quién es la culpa.
 
-Mientras tanto, en esta máquina el arranque real sigue siendo `scripts\start_kafka.ps1`, y la corrida de Docker queda para la fase 2.6.
+Mientras tanto, en esta máquina el arranque real sigue siendo `scripts\start_kafka.ps1`, y el compose se revisa en la sección siguiente.
+
+## Verificación del compose
+
+La fase 2.6 comprueba el compose de la fase 2.5 sin necesitar Docker, porque en esta máquina no está instalado y el enunciado lo marca como opcional.
+
+El verificador vive en `docker/verificar_compose.py` y se corre con la venv desde la raíz.
+
+```powershell
+& .venv\Scripts\python.exe docker\verificar_compose.py
+```
+
+El script lee el archivo con PyYAML y pasa trece comprobaciones que cubren lo que Kafka necesita para arrancar en modo KRaft, que el YAML parsea, que el servicio kafka existe, que la imagen es `apache/kafka:4.1.2`, que el puerto 9092 queda publicado en el host, que el nodo hace de broker y de controlador a la vez, que el cliente anuncia el mismo broker que usa el proyecto, que las claves de KRaft están todas, que los factores de replicación están en uno, que el volumen está declarado y montado donde Kafka escribe, y que el healthcheck consulta al broker.
+
+Cada comprobación sale con su nombre y con OK o FALLO, así que un fallo apunta directo a la pieza rota en vez de dejar adivinando.
+
+La corrida queda como evidencia en `evidencias/logs/08_verificacion_compose.log` con el encabezado de siempre, fecha en UTC, commit, comando, versiones y plataforma.
+
+También se comprobó contra la API de etiquetas de Docker Hub que `apache/kafka:4.1.2` existe, para que la primera corrida en una máquina con Docker no falle por un nombre de imagen inventado.
+
+Lo que esta verificación no prueba es que el contenedor levante de verdad, eso solo pasa con `docker compose up` en una máquina con Docker y queda documentado en la sección anterior.
 
 ## Documentos
 
@@ -444,4 +465,5 @@ Esto se documenta a propósito, porque es lo que vale el criterio de resolución
 | Aviso de desuso por is_datetime64tz_dtype | PySpark llama al método que pandas avisó que va a quitar al pasar un DataFrame a pandas | no convertir los avisos en error en el script que usa toPandas |
 | La sesión de Spark no arranca o se queda colgado en el arranque | la máquina quedó sin memoria libre después de varias corridas seguidas y la JVM queda a medias | esperar a que se libere memoria, cerrar lo que esté pesando y reintentar, la corrida sale igual |
 | El servicio dice que falta un CSV | el 05 o el 06 no corrieron o alguien limpió las salidas | correr las dos capas anteriores en orden, la base se reconstruye sola en la corrida siguiente |
-| docker compose no corre en la máquina de referencia | no hay Docker instalado y el enunciado lo marca como opcional | validar la sintaxis del compose con un parser de YAML y dejar la corrida para la fase 2.6 en una máquina con Docker |
+| docker compose no corre en la máquina de referencia | no hay Docker instalado y el enunciado lo marca como opcional | revisar el compose con el verificador estático de la fase 2.6 y correrlo en una máquina con Docker |
+| El verificador se cae con ModuleNotFoundError de yaml | la venv no traía PyYAML porque no estaba en requirements.txt | pinear pyyaml==6.0.2 en requirements.txt e instalarlo con la forma m pip |

@@ -12,7 +12,9 @@ La foto queda en la carpeta de datos crudos y al lado recibe un manifiesto en JS
 
 El hash es lo que permite demostrar más adelante que dos corridas partieron de los mismos datos.
 
-Para correrlo es python 01_descargar.py y sin argumento muestra el catálogo de fuentes.
+Uso:
+  01_descargar.py                       muestra el catálogo de fuentes
+  01_descargar.py aire_horario          descarga la foto de esa fuente
 """
 
 import hashlib

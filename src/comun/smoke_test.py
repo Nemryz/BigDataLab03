@@ -13,6 +13,9 @@ Cada prueba dice qué esperaba y qué obtuvo, porque un log que solo dice que pa
 Por eso el script compara contra un valor esperado en vez de solo imprimir.
 
 Al final escribe un archivo Parquet de prueba en una carpeta temporal, lo lee de vuelta y lo borra, para que no ensucie la carpeta de datos con la verificación.
+
+Uso:
+  smoke_test.py
 """
 
 import os
