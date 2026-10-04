@@ -1,6 +1,6 @@
 """Verifica el compose de Docker sin necesitar Docker instalado.
 
-Este laboratorio se hace en Windows y en la máquina de referencia no hay Docker, así que la composición de la fase 2.5 no se pudo levantar para probarla.
+Este laboratorio se hace en Windows y en la máquina de referencia no hay Docker, así que la composición creada para levantar Kafka con contenedores no se pudo probar en vivo.
 
 Antes de llevarla a una máquina con Docker conviene comprobar lo que sí se puede revisar sin el motor de contenedores, que el archivo esté bien formado y que traiga todo lo que Kafka necesita para arrancar en modo KRaft.
 

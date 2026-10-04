@@ -15,7 +15,7 @@ checkpoints/
 kafka/
 kafka.tgz
 
-# Salidas pesadas de cada fase, porque los CSV y los PNG sí se versionan
+# Salidas pesadas de cada capa, porque los CSV y los PNG sí se versionan
 # y así la evidencia visible de los resultados queda en el historial
 **/salidas/**/parquet/
 **/salidas/**/sqlite/

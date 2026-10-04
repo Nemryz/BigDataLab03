@@ -8,18 +8,18 @@ Este documento describe lo que ya está construido y lo que falta, con los coman
 
 ## Estado del proyecto
 
-| Fase | Qué cubre | Estado |
-| ---- | --------- | ------ |
-| 0 | Limpieza del repositorio y scripts de arranque | hecha |
-| 1 | Biblioteca compartida, configuración y prueba de humo | hecha |
-| 2.1 | Descarga de la foto, productor de Kafka y verificación | hecha |
-| 2.2 | Capa de velocidad con Spark Structured Streaming | hecha |
-| 2.3 | Capa de lotes con Spark batch | hecha |
-| 2.4 | Servicio de consulta sobre SQLite | hecha |
-| 2.5 | Docker | escrita sin ejecutar |
-| 2.6 | Verificación Docker | verificada sin Docker |
-| 2.7 | Documentación final | pendiente |
-| 3 | Informe, tabla comparativa y presentación | pendiente |
+| Componente | Qué cubre | Estado |
+| ---------- | --------- | ------ |
+| Entorno y arranque | Limpieza del repositorio y scripts de arranque | hecho |
+| Biblioteca compartida | Configuración, evidencia y prueba de humo | hecha |
+| Ingesta con Kafka | Descarga de la foto, productor y verificación | hecha |
+| Capa de velocidad | Spark Structured Streaming con ventana de sesión | hecha |
+| Capa de lotes | Lectura batch y vistas consolidadas | hecha |
+| Capa de servicio | Consultas sobre SQLite con el cruce de las dos capas | hecha |
+| Docker | Composición de Kafka y su verificación estática | hecha sin Docker |
+| Corrida completa | Ingesta hasta el servicio, de punta a punta | hecha |
+| Documentación | README y bitácora con las salidas reales | hecha |
+| Cierre | Informe técnico, tabla comparativa y presentación | pendiente |
 
 ## Arquitectura
 
@@ -38,22 +38,22 @@ Los eventos llevan la hora de la lectura y la hora de la emisión por separado, 
 
 ## Estructura del repositorio
 
-El orden de carpetas está pensado para lo que se va a crear después.
+El orden de carpetas sigue el recorrido del dato, desde la descarga hasta la evidencia.
 
-| Ruta | Contenido | Fase |
-| ---- | --------- | ---- |
-| scripts | Arranque del entorno, broker de Kafka y captura del entorno | 0 |
-| src/comun | Configuración, sesión de Spark, evidencia, catálogo de fuentes | 1 |
-| lambda/01-ingesta | Descarga, productor y verificador | 2.1 |
-| lambda/02-velocidad | Streaming de Spark | 2.2 |
-| lambda/03-lotes | Lectura batch del topic y vistas consolidadas | 2.3 |
-| lambda/04-servicio | Capa de servicio sobre SQLite | 2.4 |
-| docker | Composición de Docker con el broker de Kafka y su verificador | 2.5 y 2.6 |
-| lambda/salidas | Resultados pesados de cada fase | 2.x |
-| evidencias | Logs, capturas de entorno, gráficos y pantallazos | todas |
-| docs | Informe técnico, tabla comparativa y guion | 3 |
-| datos | Foto cruda descargada, ignorada por git | 2.1 |
-| checkpoints | Estado del streaming, ignorado por git | 2.2 |
+| Ruta | Contenido |
+| ---- | --------- |
+| scripts | Arranque del entorno, broker de Kafka y captura del entorno |
+| src/comun | Configuración, sesión de Spark, evidencia, catálogo de fuentes |
+| lambda/01-ingesta | Descarga, productor y verificador |
+| lambda/02-velocidad | Streaming de Spark |
+| lambda/03-lotes | Lectura batch del topic y vistas consolidadas |
+| lambda/04-servicio | Capa de servicio sobre SQLite |
+| docker | Composición de Docker con el broker de Kafka y su verificador |
+| lambda/salidas | Resultados pesados de cada capa |
+| evidencias | Logs, capturas de entorno, gráficos y pantallazos |
+| docs | Informe técnico, tabla comparativa y guion |
+| datos | Foto cruda descargada, ignorada por git |
+| checkpoints | Estado del streaming, ignorado por git |
 
 Las carpetas pesadas quedan fuera del historial porque pesan megabytes y nadie necesita ver su evolución.
 
@@ -70,8 +70,8 @@ Las carpetas vacías no viajan con un clon, así que la función asegurar_carpet
 | winutils | 3.3.5 | el binario nativo que Windows necesita para escribir |
 | Apache Kafka | 4.1.2 | broker en modo KRaft, sin ZooKeeper |
 | kafka-python | 3.0.11 | productor y consumidor ligeros para la ingesta |
-| Docker | 20.10.4 o posterior | opcional en el enunciado, solo para la composición de la fase 2.5 |
-| PyYAML | 6.0.2 | lee el compose en el verificador de la fase 2.6 |
+| Docker | 20.10.4 o posterior | opcional en el enunciado, solo para la composición de Kafka en contenedores |
+| PyYAML | 6.0.2 | lee el compose en el verificador estático |
 
 La máquina de referencia tiene 7,7 GB de memoria, y por eso el driver de Spark arranca con 2 GB y las carpetas de mezcla bajan de 200 a 4.
 
@@ -147,6 +147,8 @@ scripts\start_kafka.ps1
 scripts\stop_kafka.ps1
 ```
 
+Esta secuencia completa se corrió de punta a punta y cerró todas las comprobaciones, desde la descarga de la foto hasta el cruce de las dos capas en la capa de servicio.
+
 La descarga se hace una sola vez y después el pipeline lee del disco.
 
 Con --segundos 0.02 la semana entera tarda unos dieciséis segundos en salir, que es lo justo para que la cola se vea llena sin hacer esperar a nadie.
@@ -176,6 +178,10 @@ Para revisar la lista sin tocar el broker:
 El script 01_descargar es el único que toca la red.
 
 Trae una semana cerrada de lecturas horarias de cuatro ciudades y tres contaminantes desde Open-Meteo, un servidor que no pide clave de API y que devuelve pronósticos archivados, o sea valores que no cambian entre llamadas.
+
+La semana no está escrita a mano, se recalcula en cada descarga y siempre termina ayer, porque el día de hoy está incompleto y el servidor lo va corrigiendo a medida que pasan las horas.
+
+Lo que congela la corrida es el manifiesto, que anota el rango y el hash de la foto que se usó, de modo que dos corridas con el mismo manifiesto leen los mismos bytes y un hash distinto siempre significa que la foto cambió.
 
 Antes de guardar le quita a cada ciudad el campo generationtime_ms, que es lo que tardó el servidor en armar la respuesta.
 
@@ -239,7 +245,7 @@ La marca de agua va cuatro horas por delante de la hora de lectura y su trabajo 
 
 Ese retardo es el doble de la separación a propósito, porque si quedara más cerca que la separación la ventana podría cerrar una sesión que todavía estaba abierta.
 
-Cada lote le saca a Kafka como máximo cien mensajes, así que la semana entra en siete lotes y en la consola se ve el número de sesiones vivas subir de tres a siete a medida que avanza la cola.
+Cada lote le saca a Kafka como máximo cien mensajes, así que la semana entra en siete lotes y en la consola se ve el número de sesiones vivas subir a medida que avanza la cola.
 
 El modo de salida es el completo y no el de actualización, que fue el primero que se probó.
 
@@ -249,7 +255,7 @@ El modo de anexar tampoco serviría, porque solo suelta una sesión cuando la ma
 
 En el modo completo cada lote vuelve a mandar todas las sesiones que siguen vivas, así que el mismo episodio aparece muchas veces en el Parquet con más lecturas encima cada vez.
 
-Por eso el segundo script de la fase se llama resumen y no consulta.
+Por eso el segundo script de la capa se llama resumen y no consulta.
 
 05_resumen_velocidad.py se queda con la versión más avanzada de cada episodio, escribe un CSV de una fila por episodio dentro de lambda/salidas/velocidad, imprime el recuento por ciudad, señala el episodio más largo y el más intenso y deja un gráfico de la semana en evidencias/graficos.
 
@@ -266,7 +272,7 @@ Para correrla, con el broker arriba y el productor ya ejecutado:
 
 El interruptor limpiar borra el checkpoint y el Parquet de la corrida anterior, y hace falta apretarlo cada vez que se vuelve a mandar el topic desde cero, porque si no Spark recuerda haber leído todo y en la corrida nueva no procesa nada.
 
-La semana completa deja 128 horas sobre el umbral agrupadas en siete episodios, cinco en Santiago y dos en Valparaíso.
+En la corrida de referencia la semana completa deja 111 horas sobre el umbral agrupadas en seis episodios, cinco en Santiago y uno en Valparaíso.
 
 Mendoza y Puerto Montt no pasaron el umbral ninguna hora de esa semana, así que no aparecen en el gráfico, y eso también es un resultado y no un fallo del proceso.
 
@@ -290,7 +296,7 @@ Los promedios se redondean a dos decimales dentro de la propia consulta y no al 
 
 Cada vista se cierra con su propio SHA-256 sobre los campos estables, con el mismo criterio que las otras capas, y la suma de horas sobre umbral de la vista por ciudad se imprime junto con las alertas del topic.
 
-En la corrida de referencia las dos cuentas dan 128, o sea las mismas 128 horas contaminadas contadas por caminos distintos, uno desde los mensajes y otro desde las vistas, y esa coincidencia es la que prueba que las dos ramas de la arquitectura ven el mismo dato.
+En la corrida de referencia las dos cuentas dan 111, o sea las mismas 111 horas contaminadas contadas por caminos distintos, uno desde los mensajes y otro desde las vistas, y esa coincidencia es la que prueba que las dos ramas de la arquitectura ven el mismo dato.
 
 El gráfico de evidencias/graficos/lotes_diario.png muestra el promedio diario de pm2.5 de cada ciudad, una línea por lugar sobre los siete días.
 
@@ -322,7 +328,7 @@ Con las tablas cargadas se corren cuatro consultas.
 
 La primera resume la semana por ciudad, la segunda muestra los tres días más contaminados de la foto, la tercera cuenta los episodios del streaming por ciudad y la cuarta es el cruce entre las dos capas.
 
-El cruce pone en la misma fila las horas contaminadas que cuenta el batch y las lecturas contaminadas que suman los episodios del streaming, y en la corrida de referencia las dos suman 128, o sea las mismas 128 horas que ya validaron el 05 y el 06 contra las alertas del topic.
+El cruce pone en la misma fila las horas contaminadas que cuenta el batch y las lecturas contaminadas que suman los episodios del streaming, y en la corrida de referencia las dos suman 111, o sea las mismas 111 horas que ya validaron el 05 y el 06 contra las alertas del topic.
 
 Ese número repetido por tercera vez es el que cierra la arquitectura, las dos ramas procesaron exactamente el mismo dato y la capa de servicio lo puede mostrar sin elegir favoritos.
 
@@ -408,7 +414,7 @@ Mientras tanto, en esta máquina el arranque real sigue siendo `scripts\start_ka
 
 ## Verificación del compose
 
-La fase 2.6 comprueba el compose de la fase 2.5 sin necesitar Docker, porque en esta máquina no está instalado y el enunciado lo marca como opcional.
+El verificador comprueba el compose sin necesitar Docker, porque en esta máquina no está instalado y el enunciado lo marca como opcional.
 
 El verificador vive en `docker/verificar_compose.py` y se corre con la venv desde la raíz.
 
@@ -465,5 +471,5 @@ Esto se documenta a propósito, porque es lo que vale el criterio de resolución
 | Aviso de desuso por is_datetime64tz_dtype | PySpark llama al método que pandas avisó que va a quitar al pasar un DataFrame a pandas | no convertir los avisos en error en el script que usa toPandas |
 | La sesión de Spark no arranca o se queda colgado en el arranque | la máquina quedó sin memoria libre después de varias corridas seguidas y la JVM queda a medias | esperar a que se libere memoria, cerrar lo que esté pesando y reintentar, la corrida sale igual |
 | El servicio dice que falta un CSV | el 05 o el 06 no corrieron o alguien limpió las salidas | correr las dos capas anteriores en orden, la base se reconstruye sola en la corrida siguiente |
-| docker compose no corre en la máquina de referencia | no hay Docker instalado y el enunciado lo marca como opcional | revisar el compose con el verificador estático de la fase 2.6 y correrlo en una máquina con Docker |
+| docker compose no corre en la máquina de referencia | no hay Docker instalado y el enunciado lo marca como opcional | revisar el compose con el verificador estático y correrlo en una máquina con Docker |
 | El verificador se cae con ModuleNotFoundError de yaml | la venv no traía PyYAML porque no estaba en requirements.txt | pinear pyyaml==6.0.2 en requirements.txt e instalarlo con la forma m pip |

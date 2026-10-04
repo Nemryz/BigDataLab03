@@ -202,7 +202,7 @@ SEED = 20260928
 # Se deja la lista igual de todas formas para que los scripts no tengan que cambiar si alguna vez se agrega una carpeta.
 ZONAS_DATOS = ("raw",)
 
-# La carpeta donde cada fase deja sus resultados, y se llama igual en todas para que el informe pueda compararlas sin traducir nombres.
+# La carpeta donde cada capa deja sus resultados, y se llama igual en todas para que el informe pueda compararlas sin traducir nombres.
 
 # Lo que pesa, como el Parquet, queda fuera del repositorio con el gitignore, en cambio el CSV de episodios sí se versiona porque es la evidencia que se muestra.
 SALIDAS = RAIZ / "lambda" / "salidas"
