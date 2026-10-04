@@ -22,7 +22,7 @@ function escribir($texto) {
     $script:salida += $texto
 }
 
-# Mientras que 'escribir' escribe como su nombre indica, 'escribirError' escribe en rojo y tambien guarda la linea en el log, porque es importante dejar evidencia de que algo fallo. Pero no corta el script, porque puede ser un aviso y no un error fatal.
+# Mientras que escribir escribe como su nombre indica, escribirError escribe en rojo y tambien guarda la linea en el log, porque es importante dejar evidencia de que algo fallo. Pero no corta el script, porque puede ser un aviso y no un error fatal.
 escribir "Bootstrap de BigDataLab03"
 escribir "Repositorio  $repo"
 escribir ""

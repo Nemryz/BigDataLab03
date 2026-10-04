@@ -8,7 +8,8 @@ Este documento describe el procedimiento hecho, con los comandos exactos para re
 
 ## Estado del proyecto
 
-| Componente | Qué cubre |  
+| Componente | Qué cubre |
+| ------------ | --------- |
 | Entorno y arranque | Limpieza del repositorio y scripts de arranque |  
 | Biblioteca compartida | Configuración, evidencia y prueba de humo |  
 | Ingesta con Kafka | Descarga de la foto, productor y verificación |  
@@ -26,6 +27,7 @@ La arquitectura Lambda separa el mismo dato en dos caminos que se alimentan del 
 El dato entra una sola vez, se publica en un topic de Kafka y desde ahí se bifurca. Un topic vendría siendo un canal de comunicación entre productores y consumidores, y en este caso es la frontera entre la ingesta y las dos capas de procesamiento.
 
 | Camino | Velocidad | Destino |
+| ------ | --------- | ------- |
 | Capa de velocidad | casi en vivo, ventana de sesión | resultados inmediatos |
 | Capa de lotes | diferido, todo el histórico | resultados consolidados |
 | Capa de servicio | consultas sobre SQLite con el cruce de las dos capas | resultados finales |
@@ -41,6 +43,7 @@ En nuestro caso la hora de emisión es la que marca el productor, y como el prod
 El orden de carpetas sigue el recorrido del dato, desde la descarga hasta la evidencia.
 
 | Ruta | Contenido |
+| ---- | --------- |
 | scripts | Arranque del entorno, broker de Kafka y captura del entorno |
 | src/comun | Configuración, sesión de Spark, evidencia, catálogo de fuentes |
 | lambda/01-ingesta | Descarga, productor y verificador |
@@ -63,8 +66,8 @@ Las carpetas vacías no viajan con un clon, así que la función asegurar_carpet
 ## Requisitos
 
 | Componente | Versión | Por qué esa |
+| ---------- | ------- | ----------- |
 | Python | 3.12.10 | venv propia dentro del repo |
-| venv | 3.12.10 | venv propia dentro del repo |
 | Temurin JDK | 17.0.20.1 | Spark 3.5 exige Java 8, 11 o 17 |
 | PySpark | 3.5.9 | empaqueta Hadoop 3.3.4, que tiene winutils publicado |
 | pandas | 2.3.3 | PySpark 4.x no soporta del todo pandas 3 en adelante |
@@ -180,7 +183,7 @@ Los interruptores que recibe el productor fueron creados para poder probarlo sin
 
 ¿Por qué? Porque si el productor manda mensajes al broker y después se corta, la corrida siguiente no sabe si los mensajes que quedaron en el topic son de la corrida anterior o de la nueva, y eso rompe la reproducibilidad.
 
-Es algo engorroso, pero necesario. Aunque teóricamente nos saltamos algunos pasos de lo solicitado por el enunciado probablemente.
+Es algo engorroso, pero necesario, porque así cada corrida empieza con el topic en cero y nadie tiene que adivinar de qué corrida son los mensajes que quedaron.
 
 ## Datos reales, descargados una vez
 
@@ -448,7 +451,8 @@ Lo que esta verificación no prueba es que el contenedor levante de verdad, eso 
 ## Documentos
 
 | Documento | Rúbrica |
-| docs/informe_tecnico.md | Documentación, 15 puntos |
+| --------- | ------- |
+| docs/informe.md | Documentación, 15 puntos |
 | docs/tabla_comparativa.md | Análisis comparativo, 10 puntos |
 | docs/veredicto_arquitecturas.md | Decisión del equipo |
 | docs/guion_presentacion.md | Presentación y tiempo, 20 puntos |
@@ -461,6 +465,7 @@ Lo que esta verificación no prueba es que el contenedor levante de verdad, eso 
 Esto se documenta a propósito, porque es lo que vale el criterio de resolución de problemas.
 
 | Problema | Causa real | Solución |
+| -------- | ---------- | -------- |
 | ModuleNotFoundError de pyspark | el pip del PATH es el de Python 3.13 y python abre el 3.12 | usar siempre la venv y la forma con m pip |
 | Unsupported class file major version | JAVA_HOME vacío, así que Spark tomaba el Java 20 del PATH | apuntar JAVA_HOME al Temurin 17 |
 | HADOOP_HOME y hadoop.home.dir sin definir al escribir Parquet | falta el binario de permisos de Windows | instalar winutils |
