@@ -194,6 +194,26 @@ Los SHA-256 de la corrida de referencia son c3b1ba75a99b57feede7a328b45fc4150202
 
 Los archivos quedan en lambda/salidas/lotes con diario.csv, ciudades.csv y la carpeta parquet, y el gráfico en evidencias/graficos/lotes_diario.png.
 
+## Correr la capa de servicio
+
+Se corre al final, después de que las dos capas anteriores ya dejaron sus CSV, y no necesita broker ni Spark porque solo abre tres archivos y los carga en SQLite.
+
+```powershell
+& .venv\Scripts\python.exe lambda\04-servicio\07_servicio.py
+```
+
+Debe imprimir tres líneas de carga, `diario 28 filas`, `ciudades 4 filas` y `episodios 7 filas`, y después las cuatro consultas del servicio.
+
+La primera consulta resume la semana por ciudad, la segunda muestra los tres días más contaminados de la foto, la tercera cuenta los episodios del streaming por ciudad y la cuarta es el cruce entre las dos capas.
+
+La de cruce es la que cierra la arquitectura, muestra en la misma fila las horas batch y las lecturas de los episodios de cada ciudad, y termina con los renglones `Horas batch 128`, `Lecturas episodios 128` y `El cruce coincide`.
+
+Esas 128 horas son las mismas que ya cuadraron en las otras capas, o sea las 128 alertas del topic contadas por tercera vez, ahora con las dos ramas de la arquitectura lado a lado en una sola tabla.
+
+La base queda en lambda/salidas/servicio/aire.db y no se versiona porque se rehace en cada corrida, en cambio las consultas quedan impresas en evidencias/logs/07_servicio.log.
+
+La corrida tarda segundos, porque no levanta ninguna JVM y solo pasa tres archivos chicos por el sqlite3 que trae Python.
+
 ## Los logs
 
 Cada comando escribe su propia salida en evidencias/logs y el nombre del archivo indica qué lo produjo.
@@ -238,6 +258,10 @@ No se debe correr 06_lotes.py antes de que el productor termine de mandar la sem
 
 No se debe correr 06_lotes.py con los avisos convertidos en error, como el 05 pasa un DataFrame a pandas para escribir el CSV y se cae con el aviso de desuso de pandas sin que haya nada malo.
 
+No se debe correr 07_servicio.py antes del 05 y el 06, sin sus tres CSV la corrida se corta avisando cuál falta y no deja ninguna base a medias.
+
+No se debe editar la base aire.db a mano para cambiar un número, la base se borra y se reconstruye completa en cada corrida y cualquier cambio manual desaparece sin aviso.
+
 ## Errores típicos y qué hacer
 
 Si el productor dice que el broker no está corriendo, se enciende con start_kafka.ps1 y se vuelve a probar.
@@ -269,3 +293,9 @@ Si 06_lotes.py dice `El topic esta vacio, corre primero 02_productor.py`, el pro
 Si la sesión de Spark no arranca o se queda colgado en el arranque, la máquina quedó sin memoria libre después de varias corridas seguidas y la JVM queda a medias, se espera a que se libere memoria y se reintenta sin cambiar nada, la corrida sale igual.
 
 Si el renglón de cruce no da 128, el topic se leyó a mitad de la producción o se modificó entre corridas, se vuelve a la secuencia completa desde el productor con --limpiar antes de desconfiar de las vistas.
+
+Si 07_servicio.py dice `Falta` seguido de la ruta de un CSV, esa capa no corrió o alguien limpió las salidas, se corren el 05 y el 06 en orden y se vuelve a intentar el servicio.
+
+Si el servicio dice que el encabezado de un CSV es distinto al esperado, alguien editó el archivo a mano, se regenera la capa que lo produce en lugar de tocar el CSV.
+
+Si el cruce del servicio dice `NO coinciden`, una de las dos capas se corrió contra un topic distinto, se repite la secuencia completa desde el productor con --limpiar y las dos vuelven a dar 128.

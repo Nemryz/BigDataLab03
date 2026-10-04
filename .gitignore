@@ -20,6 +20,10 @@ kafka.tgz
 **/salidas/**/parquet/
 **/salidas/**/sqlite/
 **/salidas/**/checkpoints/
+# La base de SQLite de la capa de servicio se ignora con un comodín al final,
+# porque su archivo trae colas de journal y wal que aparecen y desaparecen
+# mientras la conexión sigue abierta y solo ensuciarían el status de git
+**/salidas/**/*.db*
 
 # Evidencias regenerables, se vuelven a armar con cada corrida del proyecto
 evidencias/logs/

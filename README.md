@@ -15,7 +15,7 @@ Este documento describe lo que ya está construido y lo que falta, con los coman
 | 2.1 | Descarga de la foto, productor de Kafka y verificación | hecha |
 | 2.2 | Capa de velocidad con Spark Structured Streaming | hecha |
 | 2.3 | Capa de lotes con Spark batch | hecha |
-| 2.4 | Servicio de consulta sobre SQLite | pendiente |
+| 2.4 | Servicio de consulta sobre SQLite | hecha |
 | 2.5 | Docker | pendiente |
 | 2.6 | Verificación Docker | pendiente |
 | 2.7 | Documentación final | pendiente |
@@ -47,7 +47,7 @@ El orden de carpetas está pensado para lo que se va a crear después.
 | lambda/01-ingesta | Descarga, productor y verificador | 2.1 |
 | lambda/02-velocidad | Streaming de Spark | 2.2 |
 | lambda/03-lotes | Lectura batch del topic y vistas consolidadas | 2.3 |
-| lambda/04-servicio | Servicio de consulta | 2.4 |
+| lambda/04-servicio | Capa de servicio sobre SQLite | 2.4 |
 | docker | Composición de contenedores para levantar el laboratorio en otra máquina | 2.5 |
 | lambda/salidas | Resultados pesados de cada fase | 2.x |
 | evidencias | Logs, capturas de entorno, gráficos y pantallazos | todas |
@@ -141,6 +141,7 @@ scripts\start_kafka.ps1
 & .venv\Scripts\python.exe lambda\02-velocidad\04_velocidad.py --limpiar
 & .venv\Scripts\python.exe lambda\02-velocidad\05_resumen_velocidad.py
 & .venv\Scripts\python.exe lambda\03-lotes\06_lotes.py
+& .venv\Scripts\python.exe lambda\04-servicio\07_servicio.py
 scripts\stop_kafka.ps1
 ```
 
@@ -301,6 +302,38 @@ La corrida de referencia deja 28 filas en la vista diaria, cuatro ciudades por s
 
 Dos corridas que leyeron el mismo topic dan los mismos dos hashes, que es la manera de probar que la capa de lotes es reproducible.
 
+## La capa de servicio
+
+La capa de servicio es donde se juntan los dos caminos de la arquitectura Lambda, porque hasta acá cada capa respondió por su cuenta y la pregunta completa necesitaba los dos resultados juntos.
+
+El enunciado del laboratorio pide una capa de servicio sobre SQLite o una carpeta CSV, y elegimos SQLite porque viene con Python de fábrica, no necesita servidor ni instalación aparte y la base entera cabe en un archivo que viaja con el código.
+
+07_servicio.py toma los tres CSV que dejaron las capas anteriores, el diario y el de ciudades del batch y el de episodios del streaming, y los carga en una base que se reconstruye entera en cada corrida.
+
+La base se borra y se rehace de cero en cada ejecución, así que el servicio siempre muestra el último estado de las capas y nunca una mezcla de corridas viejas con corridas nuevas.
+
+Salen tres tablas, la diaria y la de ciudades con las vistas del batch tal cual salieron del 06 y la de episodios con una fila por episodio del 05, con su inicio, su fin y su duración.
+
+El encabezado de cada CSV se compara contra las columnas declaradas antes de escribir, y si alguien tocó un archivo a mano la corrida se corta en lugar de cargar números viejos en silencio.
+
+Con las tablas cargadas se corren cuatro consultas.
+
+La primera resume la semana por ciudad, la segunda muestra los tres días más contaminados de la foto, la tercera cuenta los episodios del streaming por ciudad y la cuarta es el cruce entre las dos capas.
+
+El cruce pone en la misma fila las horas contaminadas que cuenta el batch y las lecturas contaminadas que suman los episodios del streaming, y en la corrida de referencia las dos suman 128, o sea las mismas 128 horas que ya validaron el 05 y el 06 contra las alertas del topic.
+
+Ese número repetido por tercera vez es el que cierra la arquitectura, las dos ramas procesaron exactamente el mismo dato y la capa de servicio lo puede mostrar sin elegir favoritos.
+
+Para correrla, después de las dos capas anteriores:
+
+```powershell
+& .venv\Scripts\python.exe lambda\04-servicio\07_servicio.py
+```
+
+La base queda en lambda/salidas/servicio/aire.db, ignorada por git porque se regenera con cada corrida, y las cuatro consultas quedan impresas en la consola y en evidencias/logs/07_servicio.log.
+
+SQLite no agrega ningún requisito a la instalación, porque el módulo sqlite3 viene incluido en Python.
+
 ## Cómo se registran las corridas
 
 Cada script abre su propio log en evidencias/logs apenas arranca y a partir de ahí espeja en él todo lo que se imprime.
@@ -379,3 +412,4 @@ Esto se documenta a propósito, porque es lo que vale el criterio de resolución
 | ERROR ShutdownHookManager al cerrar Spark | Windows no puede borrar la carpeta temporal mientras la JVM todavía tiene los jars abiertos | es ruido del cierre, el resumen ya se escribió antes de que aparezca |
 | Aviso de desuso por is_datetime64tz_dtype | PySpark llama al método que pandas avisó que va a quitar al pasar un DataFrame a pandas | no convertir los avisos en error en el script que usa toPandas |
 | La sesión de Spark no arranca o se queda colgado en el arranque | la máquina quedó sin memoria libre después de varias corridas seguidas y la JVM queda a medias | esperar a que se libere memoria, cerrar lo que esté pesando y reintentar, la corrida sale igual |
+| El servicio dice que falta un CSV | el 05 o el 06 no corrieron o alguien limpió las salidas | correr las dos capas anteriores en orden, la base se reconstruye sola en la corrida siguiente |
