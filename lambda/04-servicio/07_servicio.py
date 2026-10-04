@@ -32,6 +32,8 @@ Uso:
   07_servicio.py
 """
 
+from evidencia import imprimir_header, iniciar_log
+import config
 import csv
 import os
 import sqlite3
@@ -39,10 +41,9 @@ import sys
 from datetime import datetime, timezone
 
 # Agregamos la carpeta de los módulos compartidos al camino de búsqueda, porque este script vive dos niveles más abajo de la raíz y Python no la encuentra sola.
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "src", "comun"))
+sys.path.insert(0, os.path.join(os.path.dirname(
+    os.path.abspath(__file__)), "..", "..", "src", "comun"))
 
-import config
-from evidencia import imprimir_header, iniciar_log
 
 # La carpeta donde el servicio deja su base, junto a las salidas de las otras capas.
 SALIDA_SERVICIO = config.SALIDAS / "servicio"
@@ -127,7 +128,8 @@ def _crear_tabla(con, nombre, columnas):
     """Crea la tabla si todavía no existe, con los tipos que declaró la entrada.
 
     Si la tabla ya está de una corrida anterior no se toca, porque el vaciado lo hace el cargador y acá lo único que importa es que la estructura coincida con los encabezados del CSV."""
-    campos = ", ".join(f"{columna} {tipo}" for columna, tipo in columnas.items())
+    campos = ", ".join(f"{columna} {tipo}" for columna,
+                       tipo in columnas.items())
     con.execute(f"CREATE TABLE IF NOT EXISTS {nombre} ({campos})")
 
 
@@ -142,8 +144,10 @@ def _cargar(con, nombre, ruta, columnas):
     with open(ruta, encoding="utf-8", newline="") as archivo:
         lector = csv.DictReader(archivo)
         if lector.fieldnames != list(columnas):
-            print(f"El CSV {ruta} trae un encabezado distinto al esperado", flush=True)
-            print(f"Encontrado   {', '.join(lector.fieldnames or [])}", flush=True)
+            print(
+                f"El CSV {ruta} trae un encabezado distinto al esperado", flush=True)
+            print(
+                f"Encontrado   {', '.join(lector.fieldnames or [])}", flush=True)
             print(f"Esperado     {', '.join(columnas)}", flush=True)
             return None
         filas = list(lector)
@@ -152,7 +156,8 @@ def _cargar(con, nombre, ruta, columnas):
     insertar = f"INSERT INTO {nombre} ({', '.join(columnas)}) VALUES ({', '.join('?' for _ in columnas)})"
     con.executemany(
         insertar,
-        [tuple(_convertir(fila[columna], tipo) for columna, tipo in columnas.items()) for fila in filas],
+        [tuple(_convertir(fila[columna], tipo)
+               for columna, tipo in columnas.items()) for fila in filas],
     )
     return len(filas)
 
@@ -167,12 +172,15 @@ def _imprimir_tabla(titulo, encabezado, filas):
 
     anchos = []
     for posicion, columna in enumerate(encabezado):
-        ancho = max([len(str(columna))] + [len(str(fila[posicion])) for fila in filas])
+        ancho = max([len(str(columna))] + [len(str(fila[posicion]))
+                    for fila in filas])
         anchos.append(ancho)
 
-    print("  ".join(str(columna).ljust(ancho) for columna, ancho in zip(encabezado, anchos)), flush=True)
+    print("  ".join(str(columna).ljust(ancho)
+          for columna, ancho in zip(encabezado, anchos)), flush=True)
     for fila in filas:
-        print("  ".join(str(valor).ljust(ancho) for valor, ancho in zip(fila, anchos)), flush=True)
+        print("  ".join(str(valor).ljust(ancho)
+              for valor, ancho in zip(fila, anchos)), flush=True)
     print("", flush=True)
 
 
@@ -238,7 +246,8 @@ def main():
     iniciar_log("07_servicio")
     imprimir_header("07_servicio.py")
 
-    faltantes = [ruta for ruta, _columnas in ENTRADAS.values() if not ruta.is_file()]
+    faltantes = [ruta for ruta, _columnas in ENTRADAS.values()
+                 if not ruta.is_file()]
     if faltantes:
         print("", flush=True)
         for ruta in faltantes:
@@ -269,7 +278,8 @@ def main():
 
     print("", flush=True)
     print(f"Base          {RUTA_BASE}", flush=True)
-    print(f"Fecha corrida {datetime.now(timezone.utc).isoformat(timespec='seconds')}", flush=True)
+    print(
+        f"Fecha corrida {datetime.now(timezone.utc).isoformat(timespec='seconds')}", flush=True)
 
     con.close()
     return 0

@@ -1,4 +1,4 @@
-"""El contrato del evento que circula por el topic, declarado una sola vez para las dos capas.
+"""El esquema del evento que circula por el topic, declarado una sola vez para las dos capas.
 
 La capa de velocidad y la de lotes leen el mismo mensaje y las dos tienen que interpretarlo igual, así que el esquema vive en un solo archivo y no uno por script.
 
@@ -42,7 +42,8 @@ def parsear(crudo):
 
     El casteo de la hora se hace acá y no en cada script, así el que llegue después no tiene que acordarse de hacerlo para que la marca de agua le funcione."""
     return (
-        crudo.select(F.from_json(F.col("value").cast("string"), ESQUEMA_EVENTO).alias("evento"))
+        crudo.select(F.from_json(F.col("value").cast(
+            "string"), ESQUEMA_EVENTO).alias("evento"))
         .select("evento.*")
         .withColumn("hora_lectura", F.col("hora_lectura").cast("timestamp"))
     )

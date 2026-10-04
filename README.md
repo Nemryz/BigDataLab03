@@ -4,44 +4,43 @@ Laboratorio 03 de Big Data, construido sobre arquitectura Lambda con Kafka, Spar
 
 El mismo problema de fondo que el resto del curso, calidad del aire en cuatro ciudades chilenas, se procesa de tres maneras distintas para poder comparar arquitecturas sobre una pregunta idéntica.
 
-Este documento describe lo que ya está construido y lo que falta, con los comandos exactos para reproducirlo en otra máquina.
+Este documento describe el procedimiento hecho, con los comandos exactos para reproducirlo en otro dispositivo, y la evidencia de que el flujo completo funciona y es reproducible.
 
 ## Estado del proyecto
 
-| Componente | Qué cubre | Estado |
-| ---------- | --------- | ------ |
-| Entorno y arranque | Limpieza del repositorio y scripts de arranque | hecho |
-| Biblioteca compartida | Configuración, evidencia y prueba de humo | hecha |
-| Ingesta con Kafka | Descarga de la foto, productor y verificación | hecha |
-| Capa de velocidad | Spark Structured Streaming con ventana de sesión | hecha |
-| Capa de lotes | Lectura batch y vistas consolidadas | hecha |
-| Capa de servicio | Consultas sobre SQLite con el cruce de las dos capas | hecha |
-| Docker | Composición de Kafka y su verificación estática | hecha sin Docker |
-| Corrida completa | Ingesta hasta el servicio, de punta a punta | hecha |
-| Documentación | README y bitácora con las salidas reales | hecha |
-| Cierre | Informe técnico, tabla comparativa y presentación | pendiente |
+| Componente | Qué cubre |  
+| Entorno y arranque | Limpieza del repositorio y scripts de arranque |  
+| Biblioteca compartida | Configuración, evidencia y prueba de humo |  
+| Ingesta con Kafka | Descarga de la foto, productor y verificación |  
+| Capa de velocidad | Spark Structured Streaming con ventana de sesión |  
+| Capa de lotes | Lectura batch y vistas consolidadas |  
+| Capa de servicio | Consultas sobre SQLite con el cruce de las dos capas |  
+| Docker | Composición de Kafka y su verificación estática |  
+| Corrida completa | Ingesta hasta el servicio, de punta a punta |  
+| Documentación | README y bitácora con las salidas reales |  
 
 ## Arquitectura
 
-La arquitectura Lambda separa el mismo dato en dos caminos que se alimentan del mismo origen.
+La arquitectura Lambda separa el mismo dato en dos caminos que se alimentan del mismo origen. Dado que la ingesta es la parte más delicada, se hace una sola vez y después se bifurca.
 
-El dato entra una sola vez, se publica en un topic de Kafka y desde ahí se bifurca.
+El dato entra una sola vez, se publica en un topic de Kafka y desde ahí se bifurca. Un topic vendría siendo un canal de comunicación entre productores y consumidores, y en este caso es la frontera entre la ingesta y las dos capas de procesamiento.
 
 | Camino | Velocidad | Destino |
-| ------ | --------- | ------- |
 | Capa de velocidad | casi en vivo, ventana de sesión | resultados inmediatos |
 | Capa de lotes | diferido, todo el histórico | resultados consolidados |
+| Capa de servicio | consultas sobre SQLite con el cruce de las dos capas | resultados finales |
 
-El topic actúa como la frontera entre lo que ya llegó y lo que todavía se está procesando.
+Ahora bien el topic actúa como la frontera entre lo que ya llegó y lo que todavía se está procesando. De ese modo la capa de velocidad puede responder apenas llega el mensaje, y la de lotes espera a que la cola esté completa para recorrerla de punta a punta.
 
-Los eventos llevan la hora de la lectura y la hora de la emisión por separado, porque la primera dice cuándo se midió el aire y la segunda prueba que el mensaje salió en vivo.
+Luego los eventos llevan la hora de la lectura y la hora de la emisión por separado, porque la primera dice cuándo se midió el aire y la segunda prueba que el mensaje salió en vivo.
+
+En nuestro caso la hora de emisión es la que marca el productor, y como el productor manda los mensajes en orden creciente de hora de lectura, la hora de emisión también crece y no hay riesgo de que un mensaje viejo llegue después de uno nuevo.
 
 ## Estructura del repositorio
 
 El orden de carpetas sigue el recorrido del dato, desde la descarga hasta la evidencia.
 
 | Ruta | Contenido |
-| ---- | --------- |
 | scripts | Arranque del entorno, broker de Kafka y captura del entorno |
 | src/comun | Configuración, sesión de Spark, evidencia, catálogo de fuentes |
 | lambda/01-ingesta | Descarga, productor y verificador |
@@ -52,18 +51,20 @@ El orden de carpetas sigue el recorrido del dato, desde la descarga hasta la evi
 | lambda/salidas | Resultados pesados de cada capa |
 | evidencias | Logs, capturas de entorno, gráficos y pantallazos |
 | docs | Informe técnico, tabla comparativa y guion |
-| datos | Foto cruda descargada, ignorada por git |
+| datos | Imagen cruda descargada, ignorada por git |
 | checkpoints | Estado del streaming, ignorado por git |
+
+Como se ve en la tabla, tenemos datos ignorados por git, y eso es a propósito porque la foto pesa 1,5 MB y el Parquet de la capa de velocidad 3,5 MB, y no tiene sentido que el repositorio pese 5 MB más por algo que se puede descargar o generar en cada momento al ejecutar el flujo completo.
 
 Las carpetas pesadas quedan fuera del historial porque pesan megabytes y nadie necesita ver su evolución.
 
-Las carpetas vacías no viajan con un clon, así que la función asegurar_carpetas las vuelve a crear en cada arranque.
+Las carpetas vacías no viajan con un clon, así que la función asegurar_carpetas las vuelve a crear en cada arranque. Así nos aseguramos de que la estructura de carpetas esté completa y no haya errores por falta de directorios.
 
 ## Requisitos
 
 | Componente | Versión | Por qué esa |
-| ---------- | ------- | ----------- |
 | Python | 3.12.10 | venv propia dentro del repo |
+| venv | 3.12.10 | venv propia dentro del repo |
 | Temurin JDK | 17.0.20.1 | Spark 3.5 exige Java 8, 11 o 17 |
 | PySpark | 3.5.9 | empaqueta Hadoop 3.3.4, que tiene winutils publicado |
 | pandas | 2.3.3 | PySpark 4.x no soporta del todo pandas 3 en adelante |
@@ -73,11 +74,7 @@ Las carpetas vacías no viajan con un clon, así que la función asegurar_carpet
 | Docker | 20.10.4 o posterior | opcional en el enunciado, solo para la composición de Kafka en contenedores |
 | PyYAML | 6.0.2 | lee el compose en el verificador estático |
 
-La máquina de referencia tiene 7,7 GB de memoria, y por eso el driver de Spark arranca con 2 GB y las carpetas de mezcla bajan de 200 a 4.
-
-Ojo con los Pythons.
-
-En la máquina de referencia conviven un 3.12 y un 3.13, el pip del PATH pertenece al 3.13 mientras que python abre el 3.12.
+El dispositivo de referencia tiene muy poca memoria, y por eso el driver de Spark arranca con 2 GB y las carpetas de mezcla bajan su tamaño a 512 MB, que es lo mínimo que permite Spark. Con menos memoria la sesión revienta al leer el primer lote del topic.
 
 Todos los comandos de este documento usan la ruta absoluta a la venv y la forma con m pip, porque usar pip suelto instala en el intérprete equivocado y después el import falla sin explicación.
 
@@ -121,13 +118,19 @@ Para detenerlo con evidencia del cierre:
 scripts\stop_kafka.ps1
 ```
 
+La razón del formateo es que Kafka no puede borrar un topic en Windows, así que para dejarlo en cero se borra la carpeta de datos y se vuelve a formatear para evitar errores de permisos y que el broker se quede colgado con un topic que no puede mover.
+
 ### Paso 5, prueba de humo
+
+Las pruebas de humo son un conjunto de cuatro verificaciones que se corren en orden creciente de dificultad, y si alguna falla la corrida se corta con excepción.
+
+Se suelen usar para comprobar que la instalación de Spark y Hadoop funciona, y que el conector de Kafka responda las llamadas. Es como si se hiciera un chequeo rápido antes de correr el flujo completo, para no perder tiempo en una corrida que va a fallar, y así vemos si falla o no falla antes de que se haga todo el trabajo pesado.
 
 ```powershell
 & .venv\Scripts\python.exe src\comun\smoke_test.py
 ```
 
-Verifica en orden creciente de dificultad que la máquina virtual levanta, que la biblioteca nativa de Hadoop responde, que las cuentas sobre un DataFrame dan lo esperado y que Parquet, CSV y pandas funcionan.
+Verifica en orden creciente de dificultad que la máquina virtual interna se levanta, que la biblioteca nativa de Hadoop responde, que las cuentas sobre un DataFrame dan lo esperado y que Parquet, CSV y pandas funcionan.
 
 Cada prueba compara contra un valor esperado, porque un log que solo dice que pasó no sirve para saber después si el resultado era correcto.
 
@@ -159,7 +162,7 @@ Si el productor llamara a la API en cada corrida, cada vez traería datos distin
 
 El productor acepta varios interruptores.
 
-| Interruptor | Qué hace |
+| Interruptor | Función |
 | ----------- | -------- |
 | --mensajes N | manda N eventos y corta |
 | --segundos S | espera S segundos entre mensajes |
@@ -173,6 +176,12 @@ Para revisar la lista sin tocar el broker:
 & .venv\Scripts\python.exe lambda\01-ingesta\02_productor.py --lista --mensajes 8
 ```
 
+Los interruptores que recibe el productor fueron creados para poder probarlo sin tocar el broker.
+
+¿Por qué? Porque si el productor manda mensajes al broker y después se corta, la corrida siguiente no sabe si los mensajes que quedaron en el topic son de la corrida anterior o de la nueva, y eso rompe la reproducibilidad.
+
+Es algo engorroso, pero necesario. Aunque teóricamente nos saltamos algunos pasos de lo solicitado por el enunciado probablemente.
+
 ## Datos reales, descargados una vez
 
 El script 01_descargar es el único que toca la red.
@@ -181,17 +190,17 @@ Trae una semana cerrada de lecturas horarias de cuatro ciudades y tres contamina
 
 La semana no está escrita a mano, se recalcula en cada descarga y siempre termina ayer, porque el día de hoy está incompleto y el servidor lo va corrigiendo a medida que pasan las horas.
 
-Lo que congela la corrida es el manifiesto, que anota el rango y el hash de la foto que se usó, de modo que dos corridas con el mismo manifiesto leen los mismos bytes y un hash distinto siempre significa que la foto cambió.
+Lo que congela la corrida es el manifiesto, que anota el rango y el hash que se usó, de modo que dos corridas con el mismo manifiesto leen los mismos bytes y un hash distinto siempre significa que haya cambiado algo en la fuente.
 
 Antes de guardar le quita a cada ciudad el campo generationtime_ms, que es lo que tardó el servidor en armar la respuesta.
 
-Ese número cambia en cada llamada aunque los datos sean idénticos, y por eso dos descargas seguidas daban archivos distintos.
+En un comienzo cuando se descargaban los archivos este número cambiaba en cada llamada aunque los datos sean idénticos, y por eso dos descargas seguidas daban archivos distintos.
 
 Quitándolo antes de escribir, el archivo queda idéntico byte por byte entre corridas y el hash significa algo.
 
-Al lado de la foto queda un manifiesto en JSON con la dirección usada, el rango, el peso y el SHA-256 del contenido.
+Al lado de la información queda un manifiesto en JSON con la dirección usada, el rango, el peso y el SHA-256 del contenido.
 
-El productor busca la foto por manifiesto y no con un listado de la carpeta, porque un listado devuelve el archivo que haya y una corrida interrumpida podría dejar dos.
+El productor busca esto por manifiesto y no con un listado de la carpeta, dado que un listado devuelve el archivo que haya y una corrida interrumpida podría dejar dos.
 
 ## El productor
 
@@ -199,23 +208,23 @@ Cada evento es una lectura horaria de una ciudad, con su hora y sus tres contami
 
 Los eventos salen ordenados por hora y después por ciudad, de modo que cada cuatro mensajes representan la misma hora en los cuatro lugares y se puede comparar el mismo instante en todas partes.
 
-El umbral de 25 microgramos se evalúa al armar el evento y no en la capa de velocidad, porque el número sale de la misma foto que el dato y así las dos capas ven el mismo criterio sin acordarse entre ellas.
+El umbral de 25 microgramos se evalúa al armar el evento y no en la capa de velocidad, porque el número sale de la misma información que el dato y así las dos capas ven el mismo criterio sin acordarse entre ellas.
 
 Sin dato no hay alerta, que es la respuesta que conviene en un sistema que vigila algo.
 
 El mensaje se confirma con acks igual a 1, el punto medio entre la velocidad y la garantía.
 
-La clave del mensaje es la ciudad, así que las lecturas de un mismo lugar quedan juntas en la partición.
+La clave del mensaje es la ciudad, así que las lecturas de un mismo lugar quedan juntas en la partición y se pueden agrupar sin que Spark tenga que mover nada de un nodo a otro, que es lo que más tarda en un cluster.
 
 ## Verificación y reproducibilidad
 
-El verificador lee todo el topic desde el principio y sin grupo de consumo, así que no guarda offset y cada ejecución vuelve a empezar de cero.
+El verificador lee todo el topic desde el principio y sin grupo de consumo, así que no guarda offset (u otros datos de estado) y cada ejecución vuelve a empezar de cero.
 
 Imprime el total de mensajes, las alertas, el detalle por ciudad y el rango de horas, y después calcula un SHA-256 sobre los campos que son datos.
 
 A ese hash llegan la ciudad, la hora de la lectura, los tres contaminantes, el umbral, la marca de alerta y el número de evento.
 
-Se dejan afuera la hora de emisión, el broker y el topic, porque son la dirección y el momento y no el contenido.
+Se dejan afuera la hora de emisión, el broker (el broker es el servidor que recibe los mensajes) y el topic, porque son la dirección y el momento y no el contenido.
 
 Con eso dos corridas que mandaron los mismos eventos dan el mismo hash aunque se hayan hecho con horas distintas.
 
@@ -229,7 +238,7 @@ La semilla fija de 20260928 hace que dos corridas del mismo proceso generen los 
 
 ## La capa de velocidad
 
-La capa de velocidad es el camino rápido de la arquitectura Lambda, el que toma el topic y devuelve episodios de contaminación sin esperar a que termine nada.
+La capa de velocidad es el camino rápido de la arquitectura Lambda, el que toma el topic y devuelve episodios, en lambda los episodios son segmentos de datos que representan eventos relacionados con la contaminación sin esperar a que termine nada.
 
 Se apoya en una ventana de sesión, que es la pieza que conviene entender antes de mirar los comandos.
 
@@ -278,7 +287,7 @@ Mendoza y Puerto Montt no pasaron el umbral ninguna hora de esa semana, así que
 
 ## La capa de lotes
 
-La capa de lotes es el camino lento de la arquitectura Lambda, el que lee el topic entero de una sola vez y lo deja consolidado en dos vistas.
+La capa de lotes es el camino lento de la arquitectura Lambda, aquel que lee el topic entero de una sola vez y lo deja consolidado en dos vistas.
 
 Mientras la capa de velocidad responde apenas aparece el mensaje, esta espera a que la cola esté completa, recorre el topic de punta a punta y devuelve el panorama de la semana entera.
 
@@ -314,15 +323,15 @@ Dos corridas que leyeron el mismo topic dan los mismos dos hashes, que es la man
 
 La capa de servicio es donde se juntan los dos caminos de la arquitectura Lambda, porque hasta acá cada capa respondió por su cuenta y la pregunta completa necesitaba los dos resultados juntos.
 
-El enunciado del laboratorio pide una capa de servicio sobre SQLite o una carpeta CSV, y elegimos SQLite porque viene con Python de fábrica, no necesita servidor ni instalación aparte y la base entera cabe en un archivo que viaja con el código.
+El enunciado del laboratorio pide una capa de servicio sobre SQLite o una carpeta CSV, y elegimos SQLite porque viene con Python de fábrica, no necesita servidor ni instalación aparte y la base entera cabe en un archivo que viaja con el código por así decirlo de forma ironica.
 
-07_servicio.py toma los tres CSV que dejaron las capas anteriores, el diario y el de ciudades del batch y el de episodios del streaming, y los carga en una base que se reconstruye entera en cada corrida.
+En este caso usamso el script llamado 07_servicio.py que toma los tres CSV que dejaron las capas anteriores, el diario y el de ciudades del batch y el de episodios del streaming, y los carga en una base que se reconstruye entera en cada corrida.
 
 La base se borra y se rehace de cero en cada ejecución, así que el servicio siempre muestra el último estado de las capas y nunca una mezcla de corridas viejas con corridas nuevas.
 
 Salen tres tablas, la diaria y la de ciudades con las vistas del batch tal cual salieron del 06 y la de episodios con una fila por episodio del 05, con su inicio, su fin y su duración.
 
-El encabezado de cada CSV se compara contra las columnas declaradas antes de escribir, y si alguien tocó un archivo a mano la corrida se corta en lugar de cargar números viejos en silencio.
+El encabezado de cada CSV se compara contra las columnas declaradas antes de escribir, y si alguien tocó un archivo a mano la corrida se corta en lugar de cargar números viejos en silencio, con silencio no nos referimos a la consola sino a la base, que es lo que importa.
 
 Con las tablas cargadas se corren cuatro consultas.
 
@@ -352,6 +361,8 @@ El encabezado de cada log anota el momento en UTC, el commit del código, el com
 
 Con eso un log suelto sirve como prueba sin que haga falta un párrafo al lado que lo explique.
 
+Además, cada archivo de log permite ver tras cada ejecución si el flujo completo sigue funcionando, esta decisión se tomó para que se demuestre el funcionamiento e identifique cualquier cambio que rompa la reproducibilidad.
+
 ## Windows te bloquea un archivo
 
 Si al abrir scripts\lab03.bat Windows te dice que está bloqueado o te sale el aviso del Escudo de Windows, no es un virus.
@@ -365,6 +376,8 @@ Se quita con esta línea, que solo le saca la marca y no toca nada más:
 ```powershell
 Get-ChildItem -Recurse -Include *.bat, *.ps1 | Unblock-File
 ```
+
+Get-ChildItem busca todos los .bat y .ps1 en la carpeta y sus subcarpetas, y Unblock-File les quita la marca. Debería ejecutarse desde la raíz de la carpeta, y si no se hace no pasa nada, solo que Windows puede bloquear el arranque de los scripts.
 
 Lo que no vamos a hacer, y conviene decirlo porque es tentador, es desactivar Windows Defender o agregar excepciones.
 
@@ -384,7 +397,7 @@ Recrea la venv e instala las versiones pineadas de requirements.txt.
 
 ## Docker
 
-Docker es opcional en el enunciado, y en la máquina de referencia no está instalado, así que la composición se escribió y se validó como YAML pero no se llegó a levantar.
+Docker es opcional en el enunciado, y en el dispositivo de referencia no está instalado, así que la composición se escribió y se validó como YAML pero no se llegó a levantar.
 
 Lo que hay es `docker/docker-compose.yml`, una composición mínima con un solo servicio, el broker de Kafka 4.1.2 en modo KRaft dentro de un contenedor, con el puerto 9092 publicado y un volumen nombrado para los datos.
 
@@ -435,7 +448,6 @@ Lo que esta verificación no prueba es que el contenedor levante de verdad, eso 
 ## Documentos
 
 | Documento | Rúbrica |
-| --------- | ------- |
 | docs/informe_tecnico.md | Documentación, 15 puntos |
 | docs/tabla_comparativa.md | Análisis comparativo, 10 puntos |
 | docs/veredicto_arquitecturas.md | Decisión del equipo |
@@ -449,7 +461,6 @@ Lo que esta verificación no prueba es que el contenedor levante de verdad, eso 
 Esto se documenta a propósito, porque es lo que vale el criterio de resolución de problemas.
 
 | Problema | Causa real | Solución |
-| -------- | ---------- | -------- |
 | ModuleNotFoundError de pyspark | el pip del PATH es el de Python 3.13 y python abre el 3.12 | usar siempre la venv y la forma con m pip |
 | Unsupported class file major version | JAVA_HOME vacío, así que Spark tomaba el Java 20 del PATH | apuntar JAVA_HOME al Temurin 17 |
 | HADOOP_HOME y hadoop.home.dir sin definir al escribir Parquet | falta el binario de permisos de Windows | instalar winutils |

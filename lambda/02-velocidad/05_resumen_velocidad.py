@@ -20,6 +20,12 @@ Uso:
   05_resumen_velocidad.py
 """
 
+from pyspark.sql import functions as F
+from pyspark.sql import Window
+from spark_session import get_spark
+from evidencia import imprimir_header, iniciar_log
+import fuentes
+import config
 import hashlib
 import json
 import os
@@ -27,15 +33,9 @@ import sys
 from datetime import datetime, timezone
 
 # Agregamos la carpeta de los módulos compartidos al camino de búsqueda, porque este script vive dos niveles más abajo de la raíz y Python no la encuentra sola.
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "src", "comun"))
+sys.path.insert(0, os.path.join(os.path.dirname(
+    os.path.abspath(__file__)), "..", "..", "src", "comun"))
 
-import config
-import fuentes
-from evidencia import imprimir_header, iniciar_log
-from spark_session import get_spark
-
-from pyspark.sql import Window
-from pyspark.sql import functions as F
 
 # El Parquet crudo que escribe 04_velocidad.py, con un episodio repetido por cada lote en que creció.
 SALIDA_PARQUET = config.SALIDAS / "velocidad" / "parquet"
@@ -67,7 +67,8 @@ def _leer_episodios(spark):
         return None
 
     bruto = spark.read.parquet(str(SALIDA_PARQUET))
-    ventana = Window.partitionBy("ciudad", "inicio").orderBy(F.col("lecturas").desc(), F.col("fin").desc())
+    ventana = Window.partitionBy("ciudad", "inicio").orderBy(
+        F.col("lecturas").desc(), F.col("fin").desc())
 
     return (
         bruto.withColumn("orden", F.row_number().over(ventana))
@@ -78,9 +79,11 @@ def _leer_episodios(spark):
 
 
 def _con_nombres(pandas):
-    """Le agrega el nombre bonito de cada ciudad al cuadro, el que se lee en el informe."""
-    nombres = {clave: datos["nombre"] for clave, datos in fuentes.CIUDADES.items()}
-    pandas.insert(1, "ciudad_nombre", pandas["ciudad"].map(nombres).fillna(pandas["ciudad"]))
+    # Le agrega el nombre bonito de cada ciudad al cuadro, el que se lee en el informe.
+    nombres = {clave: datos["nombre"]
+               for clave, datos in fuentes.CIUDADES.items()}
+    pandas.insert(1, "ciudad_nombre", pandas["ciudad"].map(
+        nombres).fillna(pandas["ciudad"]))
     return pandas
 
 
@@ -93,7 +96,8 @@ def _resumen(pandas):
         return
 
     por_ciudad = pandas["ciudad"].value_counts().sort_index()
-    detalle = ", ".join(f"{clave}={por_ciudad[clave]}" for clave in por_ciudad.index)
+    detalle = ", ".join(
+        f"{clave}={por_ciudad[clave]}" for clave in por_ciudad.index)
     print(f"Ciudades   {detalle}", flush=True)
     print(f"Primera    {pandas['inicio'].min()}", flush=True)
     print(f"Ultima     {pandas['fin'].max()}", flush=True)
@@ -102,8 +106,10 @@ def _resumen(pandas):
     mas_intenso = pandas.loc[pandas["pm2_5_max"].idxmax()]
 
     print("", flush=True)
-    print(f"Mas horas   {mas_largo['ciudad_nombre']}  {mas_largo['inicio']}  {mas_largo['lecturas']} horas seguidas", flush=True)
-    print(f"Mas picado  {mas_intenso['ciudad_nombre']}  {mas_intenso['pm2_5_max']:.1f} ug/m3 en {mas_intenso['inicio']}", flush=True)
+    print(
+        f"Mas horas   {mas_largo['ciudad_nombre']}  {mas_largo['inicio']}  {mas_largo['lecturas']} horas seguidas", flush=True)
+    print(
+        f"Mas picado  {mas_intenso['ciudad_nombre']}  {mas_intenso['pm2_5_max']:.1f} ug/m3 en {mas_intenso['inicio']}", flush=True)
 
 
 def _hash_estable(pandas):
@@ -112,10 +118,12 @@ def _hash_estable(pandas):
     Cada fila se reduce a los campos de la tupla de arriba y se ordena por hora de inicio y ciudad, que es el orden en que pasaron las cosas.
 
     El texto se arma sin espacios de sobra para que dos maneras de escribir lo mismo no den dos hashes distintos."""
-    recortados = [{campo: str(fila[campo]) for campo in CAMPOS_ESTABLES} for _, fila in pandas.iterrows()]
+    recortados = [{campo: str(fila[campo]) for campo in CAMPOS_ESTABLES}
+                  for _, fila in pandas.iterrows()]
     recortados.sort(key=lambda f: (f["inicio"], f["ciudad"]))
 
-    texto = json.dumps(recortados, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    texto = json.dumps(recortados, sort_keys=True,
+                       ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(texto.encode("utf-8")).hexdigest()
 
 
@@ -163,7 +171,7 @@ def _grafico(pandas):
 
 
 def main():
-    """Lee el Parquet, escribe el CSV, imprime el resumen y devuelve el hash de la corrida."""
+    # Lee el Parquet, escribe el CSV, imprime el resumen y devuelve el hash de la corrida.
     iniciar_log("05_resumen_velocidad")
     imprimir_header("05_resumen_velocidad.py")
 
@@ -188,7 +196,8 @@ def main():
     print("", flush=True)
     print(f"SHA-256 episodios  {_hash_estable(pandas)}", flush=True)
     print(f"Campos              {', '.join(CAMPOS_ESTABLES)}", flush=True)
-    print(f"Fecha corrida       {datetime.now(timezone.utc).isoformat(timespec='seconds')}", flush=True)
+    print(
+        f"Fecha corrida       {datetime.now(timezone.utc).isoformat(timespec='seconds')}", flush=True)
 
     _grafico(pandas)
     spark.stop()

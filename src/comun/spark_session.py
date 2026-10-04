@@ -56,7 +56,8 @@ def get_spark(nombre_app: str, con_kafka: bool = False):
     La conexión con Kafka se pide con un interruptor y no con un parámetro obligatorio, porque hay scripts que solo leen Parquet y para esos el conector es peso muerto.
 
     El método reutiliza la sesión anterior si ya existía, en vez de abrir un segundo motor que pelee por la memoria con el primero."""
-    # Antes de ararmos dejamos la biblioteca nativa de Windows con el nombre que Hadoop busca
+
+    # Antes de todo dejamos la biblioteca nativa de Windows con el nombre que Hadoop busca
     config.preparar_winutils()
 
     from pyspark.sql import SparkSession
@@ -70,7 +71,8 @@ def get_spark(nombre_app: str, con_kafka: bool = False):
         clave, valor = _conector_de_kafka()
         constructor = constructor.config(clave, valor)
 
-    constructor = constructor.config("spark.driver.extraJavaOptions", _opciones_de_java())
+    constructor = constructor.config(
+        "spark.driver.extraJavaOptions", _opciones_de_java())
 
     # Pedimos la sesión armada
     spark = constructor.getOrCreate()

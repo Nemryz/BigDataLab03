@@ -21,13 +21,15 @@ Las dos son distintas y conviene no confundirlas, la de la lectura es cuando se 
 La segunda es la que prueba que esto corrió en vivo.
 
 Uso:
-  02_productor.py                        60 mensajes a un por segundo
-  02_productor.py --mensajes 20          corta antes
-  02_productor.py --segundos 0.1         diez por segundo, para probar
-  02_productor.py --limpiar              deja el broker en cero antes de empezar
-  02_productor.py --lista                imprime lo que enviaría y no manda nada
+    02_productor.py                        60 mensajes a un por segundo
+    02_productor.py --mensajes 20          corta antes
+    02_productor.py --segundos 0.1         diez por segundo, para probar
+    02_productor.py --limpiar              deja el broker en cero antes de empezar
+    02_productor.py --lista                imprime lo que enviaría y no manda nada
 """
-
+from evidencia import imprimir_header, iniciar_log
+import fuentes
+import config
 import argparse
 import json
 import os
@@ -40,11 +42,9 @@ import time
 from datetime import datetime, timezone
 
 # Agregamos la carpeta de los módulos compartidos al camino de búsqueda, porque este script vive dos niveles más abajo de la raíz y Python no la encuentra sola.
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "src", "comun"))
+sys.path.insert(0, os.path.join(os.path.dirname(
+    os.path.abspath(__file__)), "..", "..", "src", "comun"))
 
-import config
-import fuentes
-from evidencia import imprimir_header, iniciar_log
 
 # El nombre de la fuente que se descarga, repetido acá para no depender del nombre del archivo
 CLAVE_FUENTE = "aire_horario"
@@ -73,7 +73,8 @@ def _manifiesto():
     manifiesto = json.loads(ruta.read_text(encoding="utf-8"))
     archivo = config.DATOS / "raw" / manifiesto["archivo"]
     if not archivo.is_file():
-        print(f"El manifiesto apunta a {archivo} y ese archivo no esta", flush=True)
+        print(
+            f"El manifiesto apunta a {archivo} y ese archivo no esta", flush=True)
         return None, None
 
     return manifiesto, archivo
@@ -95,7 +96,8 @@ def _cercana(latitude, longitude):
     mejor = None
     mejor_distancia = None
     for clave, ciudad in fuentes.CIUDADES.items():
-        distancia = abs(ciudad["latitude"] - latitude) + abs(ciudad["longitude"] - longitude)
+        distancia = abs(ciudad["latitude"] - latitude) + \
+            abs(ciudad["longitude"] - longitude)
         if mejor_distancia is None or distancia < mejor_distancia:
             mejor_distancia = distancia
             mejor = clave
@@ -103,14 +105,17 @@ def _cercana(latitude, longitude):
 
 
 def _evento_de(ciudad, horas):
-    """Devuelve los eventos de una sola ciudad, uno por cada hora de su registro."""
-    clave_ciudad = _cercana(ciudad.get("latitude"), ciudad.get("longitude")) or "?"
-    nombre_ciudad = fuentes.CIUDADES.get(clave_ciudad, {}).get("nombre", "desconocida")
+    # Devuelve los eventos de una sola ciudad, uno por cada hora de su registro.
+    clave_ciudad = _cercana(ciudad.get("latitude"),
+                            ciudad.get("longitude")) or "?"
+    nombre_ciudad = fuentes.CIUDADES.get(
+        clave_ciudad, {}).get("nombre", "desconocida")
     marcas = horas.get("time", [])
 
     nuevos = []
     for i, marca in enumerate(marcas):
-        lectura = {"ciudad": clave_ciudad, "ciudad_nombre": nombre_ciudad, "hora_lectura": marca}
+        lectura = {"ciudad": clave_ciudad,
+                   "ciudad_nombre": nombre_ciudad, "hora_lectura": marca}
         for contaminante in fuentes.CONTAMINANTES:
             valores = horas.get(contaminante, [])
             lectura[contaminante] = valores[i] if i < len(valores) else None
@@ -124,7 +129,6 @@ def _evento_de(ciudad, horas):
         nuevos.append(lectura)
 
     return nuevos
-
 
 
 def _eventos(archivo):
@@ -170,7 +174,8 @@ def _asegurar_topic(bootstrap, topic):
         return False
 
     try:
-        administrador.create_topics([NewTopic(name=topic, num_partitions=1, replication_factor=1)])
+        administrador.create_topics(
+            [NewTopic(name=topic, num_partitions=1, replication_factor=1)])
         administrador.close()
         print(f"Topic creado  {topic}", flush=True)
         return True
@@ -197,7 +202,8 @@ def _correr_script(nombre):
         return False
 
     proceso = subprocess.Popen(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)],
+        ["powershell", "-NoProfile", "-ExecutionPolicy",
+            "Bypass", "-File", str(script)],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -284,11 +290,16 @@ def _vaciar_almacenamiento(topic):
 def _argumentos():
     """Lee los parámetros de la línea de comandos y devuelve los valores ya revisados."""
     parseador = argparse.ArgumentParser(add_help=True)
-    parseador.add_argument("--mensajes", type=int, default=60, help="cuantos eventos mandar")
-    parseador.add_argument("--segundos", type=float, default=1.0, help="segundos entre mensajes")
-    parseador.add_argument("--topic", default=config.TOPIC_EVENTOS, help="topic destino")
-    parseador.add_argument("--lista", action="store_true", help="imprime los eventos y no manda nada")
-    parseador.add_argument("--limpiar", action="store_true", help="deja el almacenamiento del broker en cero antes de producir")
+    parseador.add_argument("--mensajes", type=int,
+                           default=60, help="cuantos eventos mandar")
+    parseador.add_argument("--segundos", type=float,
+                           default=1.0, help="segundos entre mensajes")
+    parseador.add_argument(
+        "--topic", default=config.TOPIC_EVENTOS, help="topic destino")
+    parseador.add_argument("--lista", action="store_true",
+                           help="imprime los eventos y no manda nada")
+    parseador.add_argument("--limpiar", action="store_true",
+                           help="deja el almacenamiento del broker en cero antes de producir")
     return parseador.parse_args()
 
 
@@ -325,11 +336,13 @@ def _emitir(productor, a_mandar, args):
         for numero, evento in enumerate(a_mandar, start=1):
             evento = dict(evento)
             evento["evento_id"] = numero
-            evento["emitido_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            evento["emitido_utc"] = datetime.now(
+                timezone.utc).isoformat(timespec="seconds")
             evento["broker"] = config.KAFKA_BROKER
             evento["topic"] = args.topic
 
-            futuro = productor.send(args.topic, key=evento["ciudad"], value=evento)
+            futuro = productor.send(
+                args.topic, key=evento["ciudad"], value=evento)
             futuro.get(timeout=30)
 
             enviados += 1
@@ -337,7 +350,8 @@ def _emitir(productor, a_mandar, args):
                 alertas += 1
 
             marca = "ALERTA" if evento["supera_umbral"] else "        "
-            print(f"{numero:04d} {marca} {evento['ciudad_nombre']:<14} {evento['hora_lectura']}  pm2.5={evento.get(CAMPO_UMBRAL)}", flush=True)
+            print(
+                f"{numero:04d} {marca} {evento['ciudad_nombre']:<14} {evento['hora_lectura']}  pm2.5={evento.get(CAMPO_UMBRAL)}", flush=True)
 
             if args.segundos > 0 and numero < len(a_mandar):
                 time.sleep(args.segundos)
@@ -390,7 +404,8 @@ def main():
     eventos = _eventos(archivo)
     print("", flush=True)
     print(f"Foto      {manifiesto['archivo']}", flush=True)
-    print(f"Rango     {manifiesto['desde']} a {manifiesto['hasta']}", flush=True)
+    print(
+        f"Rango     {manifiesto['desde']} a {manifiesto['hasta']}", flush=True)
     print(f"SHA-256   {manifiesto['sha256']}", flush=True)
     print(f"Eventos   {len(eventos)} disponibles", flush=True)
 
@@ -403,7 +418,8 @@ def main():
     # Con menos de los que hay el productor no agota la foto, que es lo que conviene en una demo, y con más de los que hay se manda todo y después se corta.
     a_mandar = eventos[: max(args.mensajes, 0)]
 
-    print(f"Voy a mandar {len(a_mandar)} mensajes al topic {args.topic}", flush=True)
+    print(
+        f"Voy a mandar {len(a_mandar)} mensajes al topic {args.topic}", flush=True)
     print(f"Ritmo      {args.segundos} s por mensaje", flush=True)
     print("", flush=True)
 
@@ -411,7 +427,8 @@ def main():
         for i, evento in enumerate(a_mandar, start=1):
             print(f"{i:04d} {json.dumps(evento, ensure_ascii=False)}", flush=True)
         print("", flush=True)
-        print(f"Fin de la lista, no se mando nada ({len(a_mandar)} eventos)", flush=True)
+        print(
+            f"Fin de la lista, no se mando nada ({len(a_mandar)} eventos)", flush=True)
         return 0
 
     if args.limpiar and not _vaciar_almacenamiento(args.topic):
@@ -420,7 +437,8 @@ def main():
     if not _asegurar_topic(config.KAFKA_BROKER, args.topic):
         return 1
 
-    enviados, fallidos, alertas, duracion = _emitir(_productor_de_kafka(), a_mandar, args)
+    enviados, fallidos, alertas, duracion = _emitir(
+        _productor_de_kafka(), a_mandar, args)
     _resumen(enviados, fallidos, alertas, args, duracion)
     return 0 if fallidos == 0 else 1
 

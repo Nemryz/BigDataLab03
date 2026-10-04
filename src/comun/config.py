@@ -1,4 +1,4 @@
-"""Configuración central del Laboratorio 03.
+"""Configuración central del proyecto, y preparación del entorno antes de que se importe PySpark.
 
 Este archivo reúne las direcciones y los valores que consulta el resto del código, y hace las veces de ficha de contacto del proyecto.
 
@@ -30,7 +30,7 @@ Al escribir cualquier archivo, Spark le pone permisos, y en Windows esa operaci�
 
 Sin él la lectura de datos funciona sin problemas, pero la escritura revienta con un error que no dice nada de permisos, sino que se hace pasar por una ruta mal escrita, y por eso cuesta tanto darse cuenta.
 
-La versión que instalamos es la 3.4 porque es la más cercana a la 3.5 que trae PySpark, y el proyecto la declara por su cuenta para que en otra máquina no haya que configurarla a mano.
+La versión que instalamos es la 3.4 porque es la más cercana a la 3.5 que trae PySpark, y el proyecto la declara por su cuenta para que en otra pc no haya que configurarla a mano.
 """
 
 import os
@@ -45,7 +45,7 @@ def resolver_java() -> Path | None:
 
     Existe porque la variable JAVA_HOME se escribe en el registro de Windows y solo la leen las consolas que se abren después.
 
-    Un proceso que ya venía corriendo se queda con el valor viejo, y si en esa máquina el PATH trae el Java 20 de Oracle, Spark arranca con una versión que no aguanta.
+    Un proceso que ya venía corriendo se queda con el valor viejo, y si en esa pc el PATH trae el Java 20 de Oracle, Spark arranca con una versión que no aguanta.
 
     El nombre va en mayúsculas porque así exactamente lo lee PySpark cuando lanza la máquina virtual.
 
@@ -136,7 +136,7 @@ POLITICA_FECHA = "CORRECTED"
 
 # PySpark 3.5.9 viene compilado con Scala 2.12, como se ve en el nombre del jar spark-sql_2.12-3.5.9.jar que trae dentro de su carpeta de jars, así que el conector también tiene que ser 2.12.
 
-# Con 2.13 el Ivy resuelve una dependencia que no existe en esa distribución y la sesión revienta al leer el primer topic.
+# Con 2.13 el Ivy resuelve una dependencia que no existe en esa distribución y la sesión revienta al leer el primer topic. Ivy es el gestor de dependencias que Spark usa para bajar el conector de Kafka y sus librerías, y no es el mismo que pip, así que no alcanza con mirar qué versión de Scala tiene PySpark, hay que mirar el nombre del jar dentro de su carpeta de jars.
 SPARK_PACKAGES = "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.9"
 
 
@@ -232,7 +232,8 @@ def asegurar_carpetas() -> None:
     Sin esta función el primer script se caería al intentar escribir en una carpeta fantasma.
 
     Recorre las listas declaradas más arriba y le pide a cada carpeta que se cree si hace falta, de modo que el día que aparezca una nueva alcanza con agregarla a la tupla correspondiente."""
-    requeridas = [*(DATOS / zona for zona in ZONAS_DATOS), CHECKPOINTS, IVY_DIR, LOGS, SALIDAS]
+    requeridas = [*(DATOS / zona for zona in ZONAS_DATOS),
+                  CHECKPOINTS, IVY_DIR, LOGS, SALIDAS]
     requeridas += [EVIDENCIAS / nombre for nombre in SUBCARPETAS_EVIDENCIAS]
     for carpeta in requeridas:
         carpeta.mkdir(parents=True, exist_ok=True)

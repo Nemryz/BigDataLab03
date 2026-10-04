@@ -32,6 +32,12 @@ Uso:
   06_lotes.py [--topic T]
 """
 
+from pyspark.sql import functions as F
+from spark_session import get_spark
+from eventos import parsear
+from evidencia import imprimir_header, iniciar_log
+import fuentes
+import config
 import argparse
 import hashlib
 import json
@@ -40,15 +46,9 @@ import sys
 from datetime import datetime, timezone
 
 # Agregamos la carpeta de los módulos compartidos al camino de búsqueda, porque este script vive dos niveles más abajo de la raíz y Python no la encuentra sola.
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "src", "comun"))
+sys.path.insert(0, os.path.join(os.path.dirname(
+    os.path.abspath(__file__)), "..", "..", "src", "comun"))
 
-import config
-import fuentes
-from evidencia import imprimir_header, iniciar_log
-from eventos import parsear
-from spark_session import get_spark
-
-from pyspark.sql import functions as F
 
 # La carpeta donde quedan las vistas, con el Parquet de las dos y el CSV de cada una al lado.
 SALIDA_LOTES = config.SALIDAS / "lotes"
@@ -103,8 +103,10 @@ def _agregados():
     return [
         F.count(F.lit(1)).alias("lecturas"),
         F.sum(F.col("supera_umbral").cast("long")).alias("horas_sobre_umbral"),
-        *[F.round(F.avg(nombre), 2).alias(f"{nombre}_prom") for nombre in fuentes.CONTAMINANTES],
-        *[F.max(nombre).alias(f"{nombre}_max") for nombre in fuentes.CONTAMINANTES],
+        *[F.round(F.avg(nombre), 2).alias(f"{nombre}_prom")
+          for nombre in fuentes.CONTAMINANTES],
+        *[F.max(nombre).alias(f"{nombre}_max")
+          for nombre in fuentes.CONTAMINANTES],
     ]
 
 
@@ -114,7 +116,8 @@ def _con_nombres(df):
     Se arma un mapa con Spark y no con pandas después, de manera que el Parquet que se escribe ya traiga la columna y el que lo relea no tenga que volver a traducir la clave.
 
     La clave que no esté en el catálogo se queda igual, así una ciudad desconocida aparece con su propio código en lugar de quedar vacía."""
-    pares = [dato for clave, datos in fuentes.CIUDADES.items() for dato in (F.lit(clave), F.lit(datos["nombre"]))]
+    pares = [dato for clave, datos in fuentes.CIUDADES.items()
+             for dato in (F.lit(clave), F.lit(datos["nombre"]))]
     mapa = F.create_map(*pares)
     return df.withColumn("ciudad_nombre", F.coalesce(mapa[F.col("ciudad")], F.col("ciudad")))
 
@@ -139,7 +142,8 @@ def _vista_diaria(eventos):
         "lecturas",
         "horas_sobre_umbral",
         "pct_sobre_umbral",
-        *[columna for nombre in fuentes.CONTAMINANTES for columna in (f"{nombre}_prom", f"{nombre}_max")],
+        *[columna for nombre in fuentes.CONTAMINANTES for columna in (
+            f"{nombre}_prom", f"{nombre}_max")],
     )
 
 
@@ -161,7 +165,8 @@ def _vista_ciudades(eventos):
         "lecturas",
         "horas_sobre_umbral",
         "pct_sobre_umbral",
-        *[columna for nombre in fuentes.CONTAMINANTES for columna in (f"{nombre}_prom", f"{nombre}_max")],
+        *[columna for nombre in fuentes.CONTAMINANTES for columna in (
+            f"{nombre}_prom", f"{nombre}_max")],
     )
 
 
@@ -187,15 +192,17 @@ def _hash_de(cuadro, campos, orden):
     Cada fila se reduce a los campos declarados y se ordena por las claves que se le pasan, que es el orden en que se leen las cosas y no el en que Spark decidió escribirlas.
 
     El texto se arma sin espacios de sobra para que dos maneras de escribir lo mismo no den dos hashes distintos."""
-    recortados = [{campo: str(fila[campo]) for campo in campos} for _, fila in cuadro.iterrows()]
+    recortados = [{campo: str(fila[campo]) for campo in campos}
+                  for _, fila in cuadro.iterrows()]
     recortados.sort(key=lambda fila: tuple(fila[campo] for campo in orden))
 
-    texto = json.dumps(recortados, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    texto = json.dumps(recortados, sort_keys=True,
+                       ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(texto.encode("utf-8")).hexdigest()
 
 
 def _resumen(total, alertas, horas, cuadro_diario, cuadro_ciudades):
-    """Imprime el recuento de la corrida y el cruce que estas vistas hacen con la capa de velocidad."""
+    # Imprime el recuento de la corrida y el cruce que estas vistas hacen con la capa de velocidad.
     print(f"Eventos        {total}", flush=True)
     print(f"Alertas        {alertas}", flush=True)
     print(f"Diario         {len(cuadro_diario)} filas", flush=True)
@@ -220,12 +227,14 @@ def _grafico(cuadro):
     import matplotlib.pyplot as plt
     import pandas as pd
 
-    ordenado = cuadro.assign(_fecha=pd.to_datetime(cuadro["dia"])).sort_values(["ciudad", "_fecha"])
+    ordenado = cuadro.assign(_fecha=pd.to_datetime(
+        cuadro["dia"])).sort_values(["ciudad", "_fecha"])
 
     figura, eje = plt.subplots(figsize=(12, 5))
     for clave, filas in ordenado.groupby("ciudad"):
         etiqueta = fuentes.CIUDADES.get(clave, {}).get("nombre", clave)
-        eje.plot(filas["_fecha"], filas["pm2_5_prom"], marker="o", label=etiqueta)
+        eje.plot(filas["_fecha"], filas["pm2_5_prom"],
+                 marker="o", label=etiqueta)
 
     eje.set_title("Promedio diario de pm2.5 por ciudad")
     eje.set_xlabel("Día")
@@ -241,9 +250,11 @@ def _grafico(cuadro):
 
 
 def main():
-    """Lee el topic entero, arma las dos vistas, las escribe y cierra con los hashes y el gráfico."""
-    parser = argparse.ArgumentParser(description="Capa de lotes con Spark batch")
-    parser.add_argument("--topic", default=config.TOPIC_EVENTOS, help="topic del que se lee")
+    # Lee el topic entero, arma las dos vistas, las escribe y cierra con los hashes y el gráfico.
+    parser = argparse.ArgumentParser(
+        description="Capa de lotes con Spark batch")
+    parser.add_argument("--topic", default=config.TOPIC_EVENTOS,
+                        help="topic del que se lee")
     args = parser.parse_args()
 
     iniciar_log("06_lotes")
@@ -257,7 +268,8 @@ def main():
 
     spark = get_spark("lab03-lotes", con_kafka=True)
 
-    eventos = parsear(_leer_topic(spark, args.topic)).filter(F.col("hora_lectura").isNotNull())
+    eventos = parsear(_leer_topic(spark, args.topic)).filter(
+        F.col("hora_lectura").isNotNull())
     eventos.cache()
 
     total = eventos.count()
@@ -286,11 +298,14 @@ def main():
     _resumen(total, alertas, horas, cuadro_diario, cuadro_ciudades)
 
     print("", flush=True)
-    print(f"SHA-256 diario    {_hash_de(cuadro_diario, CAMPOS_DIARIO, ('dia', 'ciudad'))}", flush=True)
-    print(f"SHA-256 ciudades  {_hash_de(cuadro_ciudades, CAMPOS_CIUDADES, ('ciudad',))}", flush=True)
+    print(
+        f"SHA-256 diario    {_hash_de(cuadro_diario, CAMPOS_DIARIO, ('dia', 'ciudad'))}", flush=True)
+    print(
+        f"SHA-256 ciudades  {_hash_de(cuadro_ciudades, CAMPOS_CIUDADES, ('ciudad',))}", flush=True)
     print(f"Campos diario     {', '.join(CAMPOS_DIARIO)}", flush=True)
     print(f"Campos ciudades   {', '.join(CAMPOS_CIUDADES)}", flush=True)
-    print(f"Fecha corrida     {datetime.now(timezone.utc).isoformat(timespec='seconds')}", flush=True)
+    print(
+        f"Fecha corrida     {datetime.now(timezone.utc).isoformat(timespec='seconds')}", flush=True)
 
     _grafico(cuadro_diario)
     spark.stop()

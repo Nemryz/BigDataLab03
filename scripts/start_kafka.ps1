@@ -1,6 +1,6 @@
 # Arranca el broker de Kafka y espera a que este listo.
 
-# El broker se levanta en segundo plano y su salida completa se guarda en un log, porque esa salida es la evidencia de que arranco bien, y porque es la unica forma de saber que esta vivo sin adivinar.
+# El broker se levanta en segundo plano y su salida completa se guarda en un log, porque esa salida es la evidencia de que arranco bien, y porque es la unica forma de saber que esta vivo sin adivinar o hacer algo de magia negra. 
 
 # El script no adivina, espera a leer la linea exacta que dice que el servidor termino de arrancar, y si no aparece en el tiempo dado se declara fallido.
 
@@ -13,7 +13,7 @@ $bat = Join-Path $repo "kafka\bin\windows"
 $log = Join-Path $repo "evidencias\logs\03_kafka_broker.log"
 $puerto = 9092
 
-# Kafka necesita un Java y no lo busca solo, asi que se lo pasamos desde donde el proyecto ya lo tiene resuelto, que es la variable que escribimos al instalar el JDK
+# Kafka necesita un Java y no lo busca solo, asi que se lo pasamos desde donde el proyecto ya lo tiene resuelto, que es la variable que escribimos al instalar el JDK. Esto se ve si se presiona el archivo bootstrap.ps1, que es el que instala el JDK y fija la variable. Si no esta definida, el script no puede arrancar el broker y se corta con un mensaje claro.
 $javaHome = [Environment]::GetEnvironmentVariable('JAVA_HOME', 'User')
 if (-not $javaHome) {
     Write-Host "No esta definido JAVA_HOME, corre scripts/bootstrap.ps1 primero"
@@ -30,7 +30,7 @@ $env:Path = "$javaHome\bin;$env:Path"
 
 # Fijando la variable nosotros, el bloque que llama a wmic ni se ejecuta, porque la condición de que esté vacía da falso.
 
-# De paso controlamos la memoria, que es lo que nos interesa en una máquina de 7,7 GB.
+# De paso controlamos la memoria, que es lo que nos interesa 
 $env:KAFKA_HEAP_OPTS = "-Xmx256M -Xms128M"
 
 # Si el puerto ya responde, el broker de una corrida anterior sigue vivo

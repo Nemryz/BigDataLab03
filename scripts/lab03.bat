@@ -8,7 +8,7 @@ rem Esta escrito a proposito sin ofuscacion y sin descargar nada, porque esas do
 
 rem No hay ninguna llamada reflejada ni codigo empaquetado en base64, y no hay ninguna orden que baje un archivo y lo ejecute de una.
 
-rem Todo lo que hay aca es mirar si las piezas estan y, si estan, correr las que ya estan escritas.
+rem Todo lo que hay aca es mirar si las piezas estan y, si estan, correr las que ya estan escritas. Es un laboratorio, no un virus.  
 
 for %%I in ("%~dp0..") do set "REPO=%%~fI\"
 set "PY=%REPO%.venv\Scripts\python.exe"
@@ -22,7 +22,7 @@ echo.
 rem Un archivo descargado del navegador trae una marca que Windows llama Mark of the Web y por eso Windows lo bloquea al abrirlo. Esto no es un virus, es que el archivo vino de afuera y Windows no lo conoce. Si te paso, la linea de abajo le saca la marca.
 powershell -NoProfile -Command "Get-ChildItem -LiteralPath '%REPO%' -Recurse -Include *.bat,*.ps1 -ErrorAction SilentlyContinue | Unblock-File" 2>nul
 
-rem El paso uno es mirar, no instalar. Si falta algo lo decimos y paramos, porque instalar cosas sin preguntar es justo lo que hace que un equipo de confianza se vuelva sospechoso
+rem El paso uno es mirar, no instalar. Si falta algo lo decimos y paramos, porque instalar cosas sin preguntar es justo lo que hace que un equipo de confianza se vuelva sospechoso, una de las cosas que enseña descargar y probar malware en un OS como QubeOS. 
 if not exist "%PY%" (
     echo FALTA la venv, todavia no se instalo el entorno.
     echo.

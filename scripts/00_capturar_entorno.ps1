@@ -1,10 +1,12 @@
 # Captura la huella del entorno del proyecto. Se ejecuta desde la raiz del repositorio y guarda todo en evidencias\entorno.
 
-# Sirve para dos cosas, para el informe tecnico y para demostrar que el resultado depende de versiones concretas y no de la suerte.
+# Sirve para dos cosas, para el informe, nos servirá demasiado y para demostrar que el resultado depende de versiones concretas y no de la suerte, en serio... nada depende de la suerte. 
 
-# El archivo se escribe sin BOM a proposito, porque con BOM el pip install -r falla y no sabemos por que, ya que el error que sale no menciona nada de codificacion.
+# El archivo se escribe sin BOM (es un carácter especial que se agrega al principio de un archivo para indicar la codificación) a proposito, porque con BOM el pip install -r falla y no sabemos por que, ya que el error que sale no menciona nada de codificacion.
 
 # Lo mismo con la version de Java, que se captura pasando por cmd porque en PowerShell 5.1 esa orden escribe en la salida de errores y eso rompe el script si esta estricto.
+
+# Toca recordar que un .ps1 es un script de PowerShell, y que PowerShell 5.1 es la version que viene con Windows 10 y 11. Este tipo de scripts nos sirven para automatizar tareas, y en este caso para capturar el entorno del proyecto y dejar evidencia de que todo estaba bien configurado. 
 
 $ErrorActionPreference = "Stop"
 
@@ -33,7 +35,8 @@ $lineas += "JAVA_HOME  $javaHome"
 if ($javaHome -and (Test-Path (Join-Path $javaHome 'bin\java.exe'))) {
     $lineas += "version usada por el proyecto"
     $lineas += (& cmd /c "`"$javaHome\bin\java.exe`" -version 2>&1")
-} else {
+}
+else {
     $lineas += "version usada por el proyecto  NO DISPONIBLE"
 }
 $lineas += "java del PATH del sistema"
@@ -51,7 +54,8 @@ foreach ($archivo in @("winutils.exe", "hadoop.dll", "winutils.dll")) {
     $ruta = Join-Path $repo "winutils\bin\$archivo"
     if (Test-Path $ruta) {
         $lineas += "$archivo  $([math]::Round((Get-Item $ruta).Length / 1KB, 0)) KB"
-    } else {
+    }
+    else {
         $lineas += "$archivo  FALTA"
     }
 }
@@ -59,7 +63,8 @@ $lineas += ""
 $lineas += "--- Kafka ---"
 if (Test-Path (Join-Path $repo "kafka")) {
     $lineas += "instalado en la carpeta del proyecto"
-} else {
+}
+else {
     $lineas += "todavia no instalado, solo hace falta para Lambda y Kappa"
 }
 $lineas += ""

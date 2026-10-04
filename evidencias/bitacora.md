@@ -4,20 +4,17 @@ El presente documento registra, de forma ordenada y verificable, los pasos reali
 
 Cada sección describe una parte del trabajo, muestra el comando ejecutado y presenta la salida real obtenida, tal como quedó impresa en la consola y guardada en evidencias/logs.
 
-Todos los comandos se corren desde la raíz del repositorio y usan la venv del proyecto, cuya ruta absoluta se repite en cada orden para que ninguna ejecución dependa del intérprete del PATH.
-
----
+Todos los comandos se corren desde la raíz del repositorio y usan la venv del proyecto, cuya ruta absoluta se repite en cada orden para que ninguna ejecución dependa del intérprete del PATH.  
 
 ## DATASET UTILIZADO
 
-La foto de datos baja de Open-Meteo, un servidor que no pide clave de API y devuelve pronósticos archivados de calidad del aire por hora.
+Los datos se bajan de Open-Meteo, un servidor que no pide clave de API y devuelve pronósticos archivados de calidad del aire por hora.
 
 La semana no está escrita a mano, el script de descarga la recalcula en cada corrida y siempre termina ayer, porque el día de hoy está incompleto y el servidor lo va corrigiendo a medida que pasan las horas.
 
 En la corrida de referencia el rango fue del 2026-09-27 al 2026-10-03, o sea siete días completos por cuatro ciudades por veinticuatro horas, que suman las 672 lecturas horarias que procesa el pipeline.
 
 | Ciudad | País | Lecturas en la semana |
-| ------ | ---- | --------------------- |
 | Santiago | Chile | 168 |
 | Valparaíso | Chile | 168 |
 | Puerto Montt | Chile | 168 |
@@ -25,13 +22,13 @@ En la corrida de referencia el rango fue del 2026-09-27 al 2026-10-03, o sea sie
 
 Cada lectura trae pm2_5, pm10 y nitrogen_dioxide contra un umbral de 25 microgramos por metro cúbico que se evalúa al armar el evento, así que las dos capas ven el mismo criterio sin acordarse entre ellas.
 
-Al lado del archivo queda el manifiesto en JSON con la dirección usada, el rango, el peso y el SHA-256 del contenido, y ese manifiesto es lo que congela la corrida porque el productor busca la foto por manifiesto y no por listado de la carpeta.
+Un pm2_5 significa que el aire contiene partículas de menos de 2.5 micrómetros, un pm10 que tiene partículas de menos de 10 micrómetros y un nitrogen_dioxide que mide la concentración de dióxido de nitrógeno, y los tres contaminantes se usan para decidir si la lectura supera el umbral.
+
+Al lado del archivo queda el manifiesto en JSON con la dirección usada, el rango, el peso y el SHA-256 del contenido, y ese formato de manifiesto es lo que congela la corrida porque el productor busca la imagen por manifiesto y no por listado de la carpeta.
 
 Antes de guardar se le quita a cada ciudad el campo generationtime_ms, que cambia en cada llamada aunque los datos sean idénticos, y así el archivo queda byte por byte igual entre descargas del mismo rango.
 
-El SHA-256 de la foto de referencia es `e117f7b8a3170ea119ba4367ec4aa6a295d943fc7e1c0e0e5f598857d82639f3`.
-
----
+El SHA-256 de la imagen de referencia es 'e117f7b8a3170ea119ba4367ec4aa6a295d943fc7e1c0e0e5f598857d82639f3'.
 
 ## PREPARACIÓN DEL ENTORNO
 
@@ -47,6 +44,8 @@ Los scripts de la carpeta scripts pueden quedar bloqueados por la política de e
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 ```
 
+Este comando no imprime nada ni devuelve error, y si se olvida de hacer no pasa nada, solo que Windows puede bloquear el arranque de los scripts, para explicarlo mejor el Set-ExecutionPolicy se puede correr con el interruptor -WhatIf y muestra lo que haría sin tocar nada, sirve para ver si la política de ejecución es la que se espera. Los -Scope Process y -ExecutionPolicy Bypass son los que permiten correr los scripts sin cambiar la política de la máquina, y el -Force es para que no pregunte nada.
+
 De ahí en adelante los scripts se llaman con el operador de llamada y corren sin vueltas.
 
 ```powershell
@@ -59,15 +58,15 @@ El proyecto usa su propia venv dentro del repositorio, y todos los comandos de e
 & .venv\Scripts\python.exe --version
 ```
 
-**RESULTADO OBTENIDO:**
+El resultado obtenido es el siguiente:
 
 ```text
 Python 3.12.10
 ```
 
-En la máquina de referencia conviven un 3.12 y un 3.13, el pip del PATH pertenece al 3.13 mientras que python abre el 3.12, y por eso los paquetes se instalan siempre con la forma `& .venv\Scripts\python.exe -m pip install -r requirements.txt`.
+En la pc teníamos que conviven un 3.12 y un 3.13, el pip del PATH pertenece al 3.13 mientras que python abre el 3.12, y por eso los paquetes se instalan siempre con la forma `& .venv\Scripts\python.exe -m pip install -r requirements.txt`.
 
-Spark 3.5 solo acepta Java 8, 11 o 17 y la máquina trae un Java 20 de Oracle en el PATH que Spark arranca igual y después revienta.
+Spark 3.5 solo acepta Java 8, 11 o 17 y la pc trae un Java 20 de Oracle en el PATH que Spark arranca igual y después revienta.
 
 La configuración del proyecto busca el Temurin 17 en su carpeta con la versión en el nombre y escribe JAVA_HOME antes de que se importe PySpark, de modo que la prueba de humo confirma al final qué Java se usó.
 
@@ -77,38 +76,52 @@ El arranque desde cero se hace con un solo script idempotente, que pregunta ante
 & scripts\bootstrap.ps1
 ```
 
-**RESULTADO OBTENIDO:**
+RESULTADO OBTENIDO:
 
 ```text
 Bootstrap de BigDataLab03
 Repositorio  C:\BigDataLab03
 
 Paso 1 de 5, Java 17
+  
   ya estaba instalado en C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot
-  OJO, esto no aplica a la consola que lo esta corriendo, abre una nueva al final
+  
+  OJO, esto no aplica a la consola que lo esta corriendo, abre una nueva al final.
+  
+  Si se requiere instalar, se puede bajar de https://adoptium.net/temurin/releases/?version=17 y descomprimir en C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot
 
 Paso 2 de 5, la venv
+
   creando con Python 3.12
+
+  para crear la venv usa el comando '& C:\Program Files\Python312\python.exe -m venv .venv' y si no existe el 3.12 hay que instalarlo desde https://www.python.org/downloads/release/python-31210/
+  
   creada
 
 Paso 3 de 5, PySpark y librerias
-  instalando desde requisitos.txt, con las versiones exactas
+
+  instalando desde requirements.txt, con las versiones exactas
+
   instalado
 
 Paso 4 de 5, winutils
   descargando
+
   descargados, y la copia con el otro nombre tambien
+
+  el winutils.exe se copia en C:\BigDataLab03\winutils\bin y la variable de entorno HADOOP_HOME apunta a C:\BigDataLab03\winutils 
+
+  viene con el repositorio, no hace falta bajarlo de internet, y si se borra se puede regenerar con el script scripts\bootstrap_winutils.ps1 para eso fue creado ese .ps1, porque daba problemas de permisos en Windows 11 y 10 y no se podía correr Spark sin él, además que windows 11 ya no trae el binario y hay que bajarlo de internet.
 
 Paso 5 de 5, Apache Kafka, solo si falta
   descargando, son 127 MB
   instalado en la carpeta kafka
+  viene con el repositorio, al usar el script de bootstrap.ps1
 
-Verificacion
+Verificación
 ```
 
 El script crea la venv, instala las versiones pineadas de requirements.txt, prepara winutils, formatea el almacenamiento de Kafka si hace falta, baja los jars del conector y termina con la prueba de humo.
-
----
 
 ## COMPROBAR QUE EL ENTORNO SIGUE SANO
 
@@ -119,7 +132,7 @@ La verificación rápida tiene dos pasos y se corren desde la raíz.
 & .venv\Scripts\python.exe src\comun\smoke_test.py
 ```
 
-**RESULTADO OBTENIDO:**
+RESULTADO OBTENIDO:
 
 ```text
 Spark 3.5.9
@@ -158,7 +171,7 @@ El broker corre en local en modo KRaft, sin ZooKeeper, con un heap de 256 megaby
 & scripts\start_kafka.ps1
 ```
 
-**RESULTADO OBTENIDO:**
+RESULTADO OBTENIDO:
 
 ```text
 Arrancando el broker de Kafka
@@ -181,7 +194,7 @@ Para detenerlo con evidencia del cierre:
 & scripts\stop_kafka.ps1
 ```
 
-**RESULTADO OBTENIDO:**
+RESULTADO OBTENIDO:
 
 ```text
 Deteniendo el broker de Kafka
@@ -191,9 +204,7 @@ El broker se detuvo, el puerto 9092 quedo libre
 
 La parada escribe su propio log, así que un cierre limpio queda probado igual que un arranque.
 
----
-
-## DESCARGA DE LA FOTO
+## DESCARGA DE LA IMAGEN O FOTO DE DATOS
 
 El script 01 es el único que toca la red y se corre una sola vez por corrida, porque después el pipeline lee del disco.
 
@@ -201,7 +212,7 @@ El script 01 es el único que toca la red y se corre una sola vez por corrida, p
 & .venv\Scripts\python.exe lambda\01-ingesta\01_descargar.py aire_horario
 ```
 
-**RESULTADO OBTENIDO:**
+RESULTADO OBTENIDO:
 
 ```text
 01_descargar.py  2026-10-04T04:03:32+00:00
@@ -225,13 +236,11 @@ Manifiesto C:\BigDataLab03\datos\raw\aire_horario_manifiesto.json
 Log       C:\BigDataLab03\evidencias\logs\01_descarga.log
 ```
 
-Cada corrida deja el encabezado con el momento en UTC, el commit, el comando y las versiones, así que un log suelto sirve como prueba sin un párrafo al lado que lo explique.
+Cada corrida deja el encabezado con el momento en UTC, el commit, el comando y las versiones, así que un log suelto sirve como prueba sin un párrafo al lado que lo explique. La razón de que tenga el commit es que si se cambia el código y se vuelve a correr la descarga, el hash de la foto cambia y no hay forma de comparar con la corrida anterior.
 
 Si el productor llamara a la API en cada corrida, cada vez traería datos distintos, el hash nunca cuadraría y un corte de internet el día de la defensa dejaría la demo sin sostén, y por eso la foto se baja una vez y el productor la lee del disco.
 
 No se debe regenerar la foto a la ligera, porque una semana distinta cambia todos los valores del pipeline y ningún hash vuelve a cuadrar con la corrida anterior.
-
----
 
 ## PRODUCTOR DE KAFKA
 
@@ -241,7 +250,7 @@ Antes de mandar conviene ver la lista sin tocar el broker.
 & .venv\Scripts\python.exe lambda\01-ingesta\02_productor.py --lista --mensajes 8
 ```
 
-**RESULTADO OBTENIDO:**
+RESULTADO OBTENIDO:
 
 ```text
 02_productor.py  2026-10-04T04:04:30+00:00
@@ -280,7 +289,7 @@ Después viene la corrida de verdad, con el broker arriba y el almacenamiento en
 & .venv\Scripts\python.exe lambda\01-ingesta\02_productor.py --mensajes 672 --segundos 0.02 --limpiar
 ```
 
-**RESULTADO OBTENIDO:**
+RESULTADO OBTENIDO:
 
 ```text
 02_productor.py  2026-10-04T04:04:40+00:00
@@ -351,8 +360,6 @@ El umbral se evalúa al armar el evento y no después, así que la marca de aler
 
 El mensaje se confirma con acks igual a 1, el punto medio entre la velocidad y la garantía, y la clave del mensaje es la ciudad, de modo que las lecturas de un mismo lugar quedan juntas en la partición.
 
----
-
 ## VERIFICACIÓN DE LA INGESTA
 
 El verificador se puede correr las veces que quiera porque lee el topic desde el principio y sin grupo de consumo, así que no guarda offsets ni depende de cuántas veces se corrió antes.
@@ -361,7 +368,7 @@ El verificador se puede correr las veces que quiera porque lee el topic desde el
 & .venv\Scripts\python.exe lambda\01-ingesta\03_verificar.py
 ```
 
-**RESULTADO OBTENIDO:**
+RESULTADO OBTENIDO:
 
 ```text
 03_verificar.py  2026-10-04T04:05:37+00:00
@@ -393,8 +400,6 @@ Antes de calcular nada el verificador revisa que cada evento traiga los campos e
 
 Si el hash estable sale igual en dos corridas, la ingesta es reproducible.
 
----
-
 ## CAPA DE VELOCIDAD
 
 La capa de velocidad es el camino rápido de la arquitectura Lambda, el que toma el topic y devuelve episodios de contaminación sin esperar a que termine nada.
@@ -412,7 +417,7 @@ Primero se manda la semana completa al topic y después se corre el streaming co
 & .venv\Scripts\python.exe lambda\02-velocidad\04_velocidad.py --limpiar
 ```
 
-**RESULTADO OBTENIDO:**
+RESULTADO OBTENIDO:
 
 ```text
 04_velocidad.py  2026-10-04T04:05:51+00:00
@@ -501,8 +506,6 @@ No se debe correr el 04 sin el --limpiar cuando se volvió a mandar el topic des
 
 No se debe correr el 05 con los avisos convertidos en error, PySpark usa un método de pandas que ya está marcado como obsoleto y el script se cae en la conversión sin que nada esté roto.
 
----
-
 ## CAPA DE LOTES
 
 La capa de lotes es el camino lento de la arquitectura Lambda, el que lee el topic entero de una sola vez y lo deja consolidado en dos vistas.
@@ -515,7 +518,7 @@ Se corre con el broker arriba y el productor ya ejecutado.
 & .venv\Scripts\python.exe lambda\03-lotes\06_lotes.py
 ```
 
-**RESULTADO OBTENIDO:**
+RESULTADO OBTENIDO:
 
 ```text
 06_lotes.py  2026-10-04T04:07:11+00:00
@@ -552,17 +555,15 @@ Grafico    C:\BigDataLab03\evidencias\graficos\lotes_diario.png
 Log       C:\BigDataLab03\evidencias\logs\06_lotes.log
 ```
 
-El renglón de cruce dice `Horas umbral 111 igual que las alertas`, porque las 111 horas contaminadas que suman las vistas son las mismas 111 alertas que contó la ingesta, contadas por caminos distintos, una desde los mensajes y otra desde las vistas.
+El renglón de cruce dice 'Horas umbral 111 igual que las alertas', porque las 111 horas contaminadas que suman las vistas son las mismas 111 alertas que contó la ingesta, contadas por caminos distintos, una desde los mensajes y otra desde las vistas.
 
 La vista diaria trae cuatro ciudades por siete días, o sea 28 filas, y la de ciudades deja una fila por lugar para comparar la semana entera de un vistazo.
 
 Los promedios se redondean a dos decimales dentro de la propia consulta y no al escribir, porque el número que entra al hash tiene que ser idéntico en cualquier máquina.
 
-Los SHA-256 de la corrida de referencia son `af4ae41968a401c4c493d96e9654c170526cf2d85b37a18642435e8dcc2a9063` para la vista diaria y `a9d4aad45505871435811536de5fe7bef23a54b7ab0f11cefe8988e2a6662f65` para la de ciudades, y deben salir iguales todas las veces que se lea el mismo topic.
+Los SHA-256 de la corrida de referencia son 'af4ae41968a401c4c493d96e9654c170526cf2d85b37a18642435e8dcc2a9063' para la vista diaria y 'a9d4aad45505871435811536de5fe7bef23a54b7ab0f11cefe8988e2a6662f65' para la de ciudades, y deben salir iguales todas las veces que se lea el mismo topic.
 
 No se debe correr el 06 antes de que el productor termine de mandar la semana, las vistas se calculan sobre lo que haya en el topic en ese instante y a mitad de producción sale una semana incompleta con todos los hashes cambiados.
-
----
 
 ## CAPA DE SERVICIO
 
@@ -627,7 +628,7 @@ La base se borra y se rehace de cero en cada ejecución, así que el servicio si
 
 El encabezado de cada CSV se compara contra las columnas declaradas antes de escribir, y si alguien tocó un archivo a mano la corrida se corta en lugar de cargar números viejos en silencio.
 
-El renglón de cruce es el que cierra la arquitectura, muestra en la misma fila las horas batch y las lecturas de los episodios de cada ciudad, y termina con los renglones `Horas batch 111`, `Lecturas episodios 111` y `El cruce coinciden`.
+El renglón de cruce es el que cierra la arquitectura, muestra en la misma fila las horas batch y las lecturas de los episodios de cada ciudad, y termina con los renglones 'Horas batch 111', 'Lecturas episodios 111' y 'El cruce coinciden'.
 
 Esas 111 horas son las mismas que ya cuadraron en las otras capas, o sea las 111 alertas del topic contadas por tercera vez, ahora con las dos ramas de la arquitectura lado a lado en una sola tabla.
 
@@ -640,7 +641,6 @@ La corrida tarda segundos, porque no levanta ninguna JVM y solo pasa tres archiv
 La secuencia entera, desde la descarga hasta la capa de servicio, se corrió el 2026-10-04 y cerró todas las comprobaciones.
 
 | Comprobación | Valor obtenido |
-| ------------ | -------------- |
 | Lecturas descargadas y publicadas | 672 |
 | Fallidos del productor | 0 |
 | Alertas en el topic | 111 |
@@ -654,31 +654,29 @@ El orden sin saltos es descarga, productor con limpiar, verificador, streaming c
 
 No se debe apagar el broker en el medio de la secuencia, las capas de velocidad y de lotes lo necesitan arriba para leer el topic.
 
----
-
 ## DOCKER
 
 Docker es opcional en el enunciado y en la máquina de referencia no está instalado, así que la composición se creó y se validó como YAML pero no se llegó a levantar en vivo.
 
-Lo que hay es `docker/docker-compose.yml`, una composición mínima con un solo servicio, el broker de Kafka 4.1.2 en modo KRaft dentro de un contenedor, con el puerto 9092 publicado y un volumen nombrado para los datos.
+Lo que hay es 'docker/docker-compose.yml', una composición mínima con un solo servicio, el broker de Kafka 4.1.2 en modo KRaft dentro de un contenedor, con el puerto 9092 publicado y un volumen nombrado para los datos.
 
 En una máquina con Docker 20.10.4 o posterior se levanta desde la raíz:
 
-```powershell
+'''powershell
 cd docker
 docker compose up -d
 docker compose ps
 docker compose logs kafka
 docker compose down
-```
+'''
 
-La columna STATUS del ps debe terminar en `running` con health `healthy`, y en los logs aparece la línea del servidor terminado de arrancar.
+La columna STATUS del ps debe terminar en 'running' con health 'healthy', y en los logs aparece la línea del servidor terminado de arrancar.
 
 No se debe levantar el contenedor y el broker de Windows al mismo tiempo, porque los dos quieren el puerto 9092 y el segundo falla con un error de puerto ocupado que parece un fallo del script y no lo es.
 
-No se debe usar `docker compose down -v` sin querer borrar los datos, porque esa variante elimina el volumen nombrado donde el contenedor guarda los topics.
+No se debe usar 'docker compose down -v' sin querer borrar los datos, porque esa variante elimina el volumen nombrado donde el contenedor guarda los topics.
 
-Si docker no está instalado, el error de que el comando no se reconoce es la señal de que esta vía no aplica en esa máquina, y el arranque sigue siendo `scripts\start_kafka.ps1`.
+Si docker no está instalado, el error de que el comando no se reconoce es la señal de que esta vía no aplica en esa máquina, y el arranque sigue siendo 'scripts\start_kafka.ps1'.
 
 Antes de viajar a una máquina con Docker conviene confirmar que la imagen existe, porque la etiqueta se pide tal cual:
 
@@ -687,7 +685,7 @@ $r = Invoke-WebRequest -Uri "https://hub.docker.com/v2/repositories/apache/kafka
 $r.StatusCode
 ```
 
-**RESULTADO OBTENIDO:**
+RESULTADO OBTENIDO:
 
 ```text
 200
@@ -701,13 +699,13 @@ El código 200 es la respuesta de que la etiqueta está publicada en Docker Hub.
 
 La composición se puede revisar en esta máquina aunque no haya Docker, porque en una primera pasada lo que casi siempre falla es el archivo y no el motor de contenedores.
 
-El verificador vive en `docker/verificar_compose.py` y se corre con la venv desde la raíz, igual que el resto de los scripts.
+El verificador vive en 'docker/verificar_compose.py' y se corre con la venv desde la raíz, igual que el resto de los scripts.
 
 ```powershell
 & .venv\Scripts\python.exe docker\verificar_compose.py
 ```
 
-**RESULTADO OBTENIDO:**
+RESULTADO OBTENIDO:
 
 ```text
 verificar_compose.py  2026-10-04T03:51:01+00:00
@@ -741,11 +739,9 @@ Log       C:\BigDataLab03\evidencias\logs\08_verificacion_compose.log
 
 Lee el compose con PyYAML y pasa trece comprobaciones, cada una con su nombre y con lo que espera encontrar, así que un fallo apunta directo a la pieza rota en vez de dejar adivinando.
 
-No se debe tomar esta verificación como prueba de que el contenedor levanta, porque no levanta nada, solo revisa el archivo, y la corrida real es `docker compose up` en una máquina con Docker.
+No se debe tomar esta verificación como prueba de que el contenedor levanta, porque no levanta nada, solo revisa el archivo, y la corrida real es 'docker compose up' en una máquina con Docker.
 
-Si el script se cae con `ModuleNotFoundError: No module named yaml`, es que la venv no tiene PyYAML todavía, y se arregla reinstalando las versiones pineadas con `& .venv\Scripts\python.exe -m pip install -r requirements.txt`.
-
----
+Si el script se cae con 'ModuleNotFoundError: No module named yaml', es que la venv no tiene PyYAML todavía, y se arregla reinstalando las versiones pineadas con '& .venv\Scripts\python.exe -m pip install -r requirements.txt'.
 
 ## LOS LOGS
 
@@ -766,8 +762,6 @@ Get-Content evidencias\logs\03_kafka_broker.log -Tail 30
 No se deben editar los logs a mano.
 
 El archivo 03_kafka_broker.log.err no se puede borrar mientras el broker siga corriendo, y eso no es un error del sistema sino el aviso de que alguien lo tiene abierto.
-
----
 
 ## QUÉ NO HACER, RESUMIDO
 
@@ -797,8 +791,6 @@ No se debe correr 07_servicio.py antes del 05 y el 06, sin sus tres CSV la corri
 
 No se debe editar la base aire.db a mano para cambiar un número, la base se borra y se reconstruye completa en cada corrida y cualquier cambio manual desaparece sin aviso.
 
----
-
 ## ERRORES TÍPICOS Y QUÉ HACER
 
 Si el productor dice que el broker no está corriendo, se enciende con start_kafka.ps1 y se vuelve a probar.
@@ -825,16 +817,16 @@ Si 05_resumen_velocidad.py dice que no existe el Parquet, es porque 04_velocidad
 
 Si el CSV sale con menos episodios de los esperados, se compara contra el recuento de episodios del 04, porque los dos cuentan por ciudad y hora de inicio y deberían dar el mismo número.
 
-Si 06_lotes.py dice `El topic esta vacio, corre primero 02_productor.py`, el productor no corrió o alguien limpió el topic después de él, se repite la secuencia completa desde el productor con --limpiar.
+Si 06_lotes.py dice 'El topic esta vacio, corre primero 02_productor.py', el productor no corrió o alguien limpió el topic después de él, se repite la secuencia completa desde el productor con --limpiar.
 
 Si la sesión de Spark no arranca o se queda colgado en el arranque, la máquina quedó sin memoria libre después de varias corridas seguidas y la JVM queda a medias, se espera a que se libere memoria y se reintenta sin cambiar nada, la corrida sale igual.
 
 Si el renglón de cruce no da 111, el topic se leyó a mitad de la producción o se modificó entre corridas, se vuelve a la secuencia completa desde el productor con --limpiar antes de desconfiar de las vistas.
 
-Si 07_servicio.py dice `Falta` seguido de la ruta de un CSV, esa capa no corrió o alguien limpió las salidas, se corren el 05 y el 06 en orden y se vuelve a intentar el servicio.
+Si 07_servicio.py dice 'Falta' seguido de la ruta de un CSV, esa capa no corrió o alguien limpió las salidas, se corren el 05 y el 06 en orden y se vuelve a intentar el servicio.
 
 Si el servicio dice que el encabezado de un CSV es distinto al esperado, alguien editó el archivo a mano, se regenera la capa que lo produce en lugar de tocar el CSV.
 
-Si el cruce del servicio dice `NO coinciden`, una de las dos capas se corrió contra un topic distinto, se repite la secuencia completa desde el productor con --limpiar y las dos vuelven a dar el mismo número en los dos lados.
+Si el cruce del servicio dice 'NO coinciden', una de las dos capas se corrió contra un topic distinto, se repite la secuencia completa desde el productor con --limpiar y las dos vuelven a dar el mismo número en los dos lados.
 
-Si la política de ejecución de PowerShell bloquea un script de la carpeta scripts, se levanta el permiso solo para la sesión con `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` y se vuelve a llamar al script.
+Si la política de ejecución de PowerShell bloquea un script de la carpeta scripts, se levanta el permiso solo para la sesión con Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` y se vuelve a llamar al script.

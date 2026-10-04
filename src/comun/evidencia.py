@@ -1,8 +1,8 @@
-"""Traza de cada ejecución para que la bitácora no se escriba a mano.
+"""Traza de cada ejecución para que la bitácora no se escriba a mano directamente en la consola.
 
 Cada log arranca con un encabezado que dice cuándo se corrió el script, con qué commit del código y con qué comando exacto, de manera que un log suelto en la carpeta de evidencias sirve como prueba sin que haga falta un párrafo al lado que lo explique.
 
-Es la diferencia entre guardar la consola y guardar un registro.
+Es la diferencia entre guardar la consola y guardar un registro, porque la consola es un flujo de salida que se pierde al terminar, y el registro es un archivo que queda para siempre y que se puede leer después.
 
 Lo único que hace este módulo es juntar cuatro datos que de otro modo cada script tendría que buscar por su cuenta.
 
@@ -47,7 +47,8 @@ class _Espejo:
         try:
             self._original.write(texto)
         except UnicodeEncodeError:
-            self._original.write(texto.encode("ascii", "replace").decode("ascii"))
+            self._original.write(texto.encode(
+                "ascii", "replace").decode("ascii"))
         self._archivo.write(texto)
         return len(texto)
 

@@ -1,6 +1,6 @@
 """Verifica el compose de Docker sin necesitar Docker instalado.
 
-Este laboratorio se hace en Windows y en la máquina de referencia no hay Docker, así que la composición creada para levantar Kafka con contenedores no se pudo probar en vivo.
+Este laboratorio se hace en Windows y en la pc en sí no hay Docker, así que la composición creada para levantar Kafka con contenedores no se pudo probar en vivo.
 
 Antes de llevarla a una máquina con Docker conviene comprobar lo que sí se puede revisar sin el motor de contenedores, que el archivo esté bien formado y que traiga todo lo que Kafka necesita para arrancar en modo KRaft.
 
@@ -12,7 +12,7 @@ La comprobación es estática.
 
 No levanta contenedores ni consulta a Docker Hub, porque la red solo la usa el script de descarga y porque una imagen que no se pudo bajar no es lo mismo que un compose mal escrito.
 
-Lo que queda para una máquina con Docker es la corrida real con docker compose up, y eso está documentado en el README y en la bitácora.
+Lo que queda para una pc con Docker es la corrida real con docker compose up, y eso está documentado en el README y en la bitácora.
 
 La evidencia de esta corrida queda en el log de la carpeta de evidencias con el encabezado de siempre.
 
@@ -20,19 +20,21 @@ Uso:
   verificar_compose.py
 """
 
+from evidencia import imprimir_header, iniciar_log
+import config
 import os
 import sys
 
 import yaml
 
 # Agregamos la carpeta de los módulos compartidos al camino de búsqueda, porque este script vive en la carpeta de docker y Python no la encuentra sola.
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "comun"))
+sys.path.insert(0, os.path.join(os.path.dirname(
+    os.path.abspath(__file__)), "..", "src", "comun"))
 
-import config
-from evidencia import imprimir_header, iniciar_log
 
 # El archivo que se verifica, junto al propio script
-RUTA_COMPOSE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docker-compose.yml")
+RUTA_COMPOSE = os.path.join(os.path.dirname(
+    os.path.abspath(__file__)), "docker-compose.yml")
 
 # Las claves sin las cuales Kafka no arranca en modo KRaft, sacadas de la guía de la imagen oficial de Apache
 CLAVES_KRAFT = (
@@ -81,17 +83,26 @@ def _comprobaciones(datos):
     return [
         ("el archivo parsea como diccionario", isinstance(datos, dict)),
         ("el servicio kafka existe", "kafka" in servicios),
-        ("la imagen es apache/kafka igual a la instalación local", servicio.get("image") == "apache/kafka:4.1.2"),
-        ("el puerto 9092 del host queda publicado", "9092:9092" in (servicio.get("ports") or [])),
-        ("el nodo hace de broker y de controlador a la vez", entorno.get("KAFKA_PROCESS_ROLES") == "broker,controller"),
+        ("la imagen es apache/kafka igual a la instalación local",
+         servicio.get("image") == "apache/kafka:4.1.2"),
+        ("el puerto 9092 del host queda publicado",
+         "9092:9092" in (servicio.get("ports") or [])),
+        ("el nodo hace de broker y de controlador a la vez",
+         entorno.get("KAFKA_PROCESS_ROLES") == "broker,controller"),
         ("el nodo tiene identificador", entorno.get("KAFKA_NODE_ID") == 1),
-        ("el cliente escucha en el mismo broker que usa el proyecto", config.KAFKA_BROKER in str(entorno.get("KAFKA_ADVERTISED_LISTENERS", ""))),
-        ("las claves de KRaft están todas", all(clave in entorno for clave in CLAVES_KRAFT)),
-        ("los factores de replicación están en uno", all(entorno.get(clave) == 1 for clave in CLAVES_REPLICACION)),
+        ("el cliente escucha en el mismo broker que usa el proyecto",
+         config.KAFKA_BROKER in str(entorno.get("KAFKA_ADVERTISED_LISTENERS", ""))),
+        ("las claves de KRaft están todas", all(
+            clave in entorno for clave in CLAVES_KRAFT)),
+        ("los factores de replicación están en uno", all(
+            entorno.get(clave) == 1 for clave in CLAVES_REPLICACION)),
         ("el volumen de datos está declarado", "kafka-data" in volumenes),
-        ("el contenedor monta ese volumen donde escribe Kafka", f"kafka-data:{RUTA_VOLUMEN}" in (servicio.get("volumes") or [])),
-        ("las bitácoras del broker apuntan al volumen", entorno.get("KAFKA_LOG_DIRS") == RUTA_VOLUMEN),
-        ("el healthcheck consulta al broker con kafka-topics", "kafka-topics.sh" in str(healthcheck.get("test", ""))),
+        ("el contenedor monta ese volumen donde escribe Kafka",
+         f"kafka-data:{RUTA_VOLUMEN}" in (servicio.get("volumes") or [])),
+        ("las bitácoras del broker apuntan al volumen",
+         entorno.get("KAFKA_LOG_DIRS") == RUTA_VOLUMEN),
+        ("el healthcheck consulta al broker con kafka-topics",
+         "kafka-topics.sh" in str(healthcheck.get("test", ""))),
     ]
 
 
@@ -117,7 +128,8 @@ def main():
             fallos += 1
 
     print("", flush=True)
-    print(f"Total     {len(comprobaciones)} comprobaciones, {fallos} fallos", flush=True)
+    print(
+        f"Total     {len(comprobaciones)} comprobaciones, {fallos} fallos", flush=True)
 
     if fallos:
         print("La composición no está lista hasta que las fallas desaparezcan", flush=True)

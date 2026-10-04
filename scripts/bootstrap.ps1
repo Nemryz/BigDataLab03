@@ -1,4 +1,4 @@
-# Deja el entorno listo desde cero, para reproducir el laboratorio en otra maquina.
+# Deja el entorno listo desde cero, para reproducir el laboratorio en otra pc.
 
 # Los cinco pasos son los mismos que estan en el README, solo que aqui estan en automatico.
 
@@ -15,23 +15,26 @@ $py = Join-Path $repo ".venv\Scripts\python.exe"
 $log = Join-Path $repo "evidencias\logs\01_bootstrap.log"
 New-Item -ItemType Directory -Force -Path (Split-Path $log -Parent) | Out-Null
 
+# salida es un arreglo de lineas que se va llenando con todo lo que se escribe en la consola, y al final se vuelca a un log para dejar evidencia de que todo quedo bien.
 $salida = @()
 function escribir($texto) {
     Write-Host $texto
     $script:salida += $texto
 }
 
+# Mientras que 'escribir' escribe como su nombre indica, 'escribirError' escribe en rojo y tambien guarda la linea en el log, porque es importante dejar evidencia de que algo fallo. Pero no corta el script, porque puede ser un aviso y no un error fatal.
 escribir "Bootstrap de BigDataLab03"
 escribir "Repositorio  $repo"
 escribir ""
 
-# Paso 1, Java 17
+# Paso 1, Java 17, lo que hacemos acá es instalarlo con winget si no esta, y si ya estaba instalado lo dejamos como estaba. No se toca la version que pueda haber en el sistema, solo la que usa el proyecto.
 escribir "Paso 1 de 5, Java 17"
 $javaHome = [Environment]::GetEnvironmentVariable('JAVA_HOME', 'User')
 $temurin = @(Get-ChildItem "C:\Program Files\Eclipse Adoptium" -Directory -Filter "jdk-17*" -ErrorAction SilentlyContinue)
 if ($javaHome -and $temurin.Count -gt 0) {
     escribir "  ya estaba instalado en $javaHome"
-} else {
+}
+else {
     escribir "  instalando con winget, puede tardar un rato"
     & winget install EclipseAdoptium.Temurin.17.JDK --accept-source-agreements --accept-package-agreements | Out-Null
     $temurin = @(Get-ChildItem "C:\Program Files\Eclipse Adoptium" -Directory -Filter "jdk-17*" -ErrorAction SilentlyContinue)
@@ -49,11 +52,12 @@ if ($javaHome -and $temurin.Count -gt 0) {
 escribir "  OJO, esto no aplica a la consola que lo esta corriendo, abre una nueva al final"
 escribir ""
 
-# Paso 2, la venv
+# Paso 2, la venv, esta es la carpeta .venv que contiene el interprete de Python y las librerias que usa el proyecto. Se crea con Python 3.12, que es la version que se usa en el laboratorio.
 escribir "Paso 2 de 5, la venv"
 if (Test-Path $py) {
     escribir "  ya existia en $py"
-} else {
+}
+else {
     escribir "  creando con Python 3.12"
     $python312 = Get-ChildItem "C:\Users\*\AppData\Local\Programs\Python\Python312\python.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $python312) {
@@ -77,7 +81,8 @@ escribir "Paso 3 de 5, PySpark y librerias"
 $versionActual = (cmd /c "`"$py`" -c `"import pyspark; print(pyspark.__version__)`" 2>nul")
 if ("$versionActual".Trim() -eq "3.5.9") {
     escribir "  PySpark 3.5.9 ya estaba"
-} else {
+}
+else {
     $requisitos = Join-Path $repo "requirements.txt"
     if (Test-Path $requisitos) {
         # Se instala desde el archivo de requisitos y no desde la lista de base, porque matplotlib no fija la version de contourpy y pip puede resolvarla distinta en cada equipo.
@@ -85,7 +90,8 @@ if ("$versionActual".Trim() -eq "3.5.9") {
         # Con el archivo pineado las dos instalaciones quedan iguales.
         escribir "  instalando desde requirements.txt, con las versiones exactas"
         cmd /c "`"$py`" -m pip install -r `"$requisitos`" 2>nul" | Out-Null
-    } else {
+    }
+    else {
         escribir "  no hay requirements.txt, se instalan las versiones base, 400 MB la primera vez"
         cmd /c "`"$py`" -m pip install --upgrade pip 2>nul" | Out-Null
         cmd /c "`"$py`" -m pip install `"pyspark[sql]==3.5.9`" matplotlib 2>nul" | Out-Null
@@ -99,14 +105,17 @@ if ("$versionActual".Trim() -eq "3.5.9") {
 }
 escribir ""
 
-# Paso 4, winutils
+# Paso 4, winutils, esta cosa fue la más difícil de conseguir, porque es un binario de Windows que no se distribuye oficialmente y hay que bajarlo de un repositorio de terceros. Configurarlo a nuestras necesidades. Mejorarlo para que funcione con PySpark 3.5.9 y que no rompa el laboratorio. Pero sin él PySpark no arranca en Windows. 
+
 escribir "Paso 4 de 5, winutils"
 $bin = Join-Path $repo "winutils\bin"
 if (Test-Path (Join-Path $bin "winutils.dll")) {
     escribir "  ya estaba en $bin"
-} else {
+}
+else {
     New-Item -ItemType Directory -Force -Path $bin | Out-Null
     $base = "https://github.com/cdarlint/winutils/raw/master/hadoop-3.3.5/bin"
+    # Este de arriba es el repo que tiene los binarios de winutils y hadoop.dll para Hadoop 3.3.5, que es la version que PySpark 3.5.9 usa internamente.
     escribir "  descargando"
     cmd /c "curl.exe -sL -o `"$bin\winutils.exe`" `"$base/winutils.exe`" 2>nul" | Out-Null
     cmd /c "curl.exe -sL -o `"$bin\hadoop.dll`" `"$base/hadoop.dll`" 2>nul" | Out-Null
@@ -123,7 +132,8 @@ escribir ""
 escribir "Paso 5 de 5, Apache Kafka, solo si falta"
 if (Test-Path (Join-Path $repo "kafka")) {
     escribir "  ya estaba instalado"
-} else {
+}
+else {
     escribir "  descargando, son 127 MB"
     cmd /c "curl.exe -sL -o `"$repo\kafka.tgz`" https://archive.apache.org/dist/kafka/4.1.2/kafka_2.13-4.1.2.tgz 2>nul" | Out-Null
     cmd /c "tar -xzf `"$repo\kafka.tgz`" -C `"$repo`" 2>nul" | Out-Null
@@ -139,7 +149,7 @@ if (Test-Path (Join-Path $repo "kafka")) {
     $config = Join-Path $repo "kafka\config\server.properties"
     if (Test-Path $config) {
         (Get-Content $config -Raw) -replace 'log\.dirs=.*', "log.dirs=$($repo.Replace('\', '/'))/kafka/kraft-logs" |
-            Set-Content -Path $config -Encoding ASCII
+        Set-Content -Path $config -Encoding ASCII
     }
     escribir "  instalado en la carpeta kafka"
 }
@@ -152,7 +162,7 @@ $utf8SinBom = New-Object System.Text.UTF8Encoding($false)
 & cmd /c "`"$py`" `"$repo\src\comun\smoke_test.py`" > `"$repo\evidencias\logs\00_smoke_test.log`" 2>&1"
 $codigo = $LASTEXITCODE
 $ultima = Get-Content (Join-Path $repo "evidencias\logs\00_smoke_test.log") -Encoding UTF8 |
-    Select-String -Pattern "SMOKE TEST" | Select-Object -Last 1
+Select-String -Pattern "SMOKE TEST" | Select-Object -Last 1
 escribir "  $($ultima.Line)"
 escribir "  log en evidencias\logs\00_smoke_test.log"
 escribir ""

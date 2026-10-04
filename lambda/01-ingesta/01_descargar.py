@@ -1,4 +1,4 @@
-"""Descarga la foto del dataset de calidad del aire y la deja en el disco con su manifiesto.
+"""Descarga la imagen de datos del dataset de calidad del aire y la deja en el disco con su manifiesto.
 
 Este es el único script del proyecto que toca la red, y eso es una decisión y no una casualidad.
 
@@ -17,6 +17,9 @@ Uso:
   01_descargar.py aire_horario          descarga la foto de esa fuente
 """
 
+from evidencia import imprimir_header, iniciar_log
+import fuentes
+import config
 import hashlib
 import json
 import os
@@ -25,11 +28,9 @@ import urllib.request
 from datetime import date, datetime, timedelta, timezone
 
 # Agregamos la carpeta de los módulos compartidos al camino de búsqueda, porque este script vive dos niveles más abajo de la raíz y Python no la encuentra sola.
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "src", "comun"))
+sys.path.insert(0, os.path.join(os.path.dirname(
+    os.path.abspath(__file__)), "..", "..", "src", "comun"))
 
-import config
-import fuentes
-from evidencia import imprimir_header, iniciar_log
 
 # La carpeta donde queda la foto del dataset crudo
 CARPETA_RAW = config.DATOS / "raw"
@@ -115,7 +116,8 @@ def _verificar(datos):
         for contaminante in fuentes.CONTAMINANTES:
             valores = horario.get(contaminante)
             if not isinstance(valores, list) or len(valores) != len(horas):
-                raise ValueError(f"El contaminante {contaminante} no trae un valor por hora")
+                raise ValueError(
+                    f"El contaminante {contaminante} no trae un valor por hora")
 
 
 def _limpiar(contenido):
@@ -205,14 +207,15 @@ def _guardar(nombre, contenido):
 
 
 def _escribir_manifiesto(clave, ficha):
-    """Deja la ficha en JSON al lado de la foto y devuelve su ruta."""
+    # Deja la ficha en JSON al lado de la foto y devuelve su ruta.
     destino = CARPETA_RAW / f"{clave}_manifiesto.json"
-    destino.write_text(json.dumps(ficha, indent=2, ensure_ascii=False), encoding="utf-8")
+    destino.write_text(json.dumps(
+        ficha, indent=2, ensure_ascii=False), encoding="utf-8")
     return destino
 
 
 def main():
-    """Descarga la fuente pedida, la guarda con su manifiesto y muestra el resumen."""
+    # Descarga la fuente pedida, la guarda con su manifiesto y muestra el resumen.
     iniciar_log("01_descarga")
     imprimir_header("01_descargar.py")
 

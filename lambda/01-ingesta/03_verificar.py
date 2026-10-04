@@ -20,6 +20,9 @@ Uso:
   03_verificar.py
 """
 
+from evidencia import imprimir_header, iniciar_log
+import fuentes
+import config
 import hashlib
 import json
 import os
@@ -27,11 +30,9 @@ import sys
 from datetime import datetime, timezone
 
 # Agregamos la carpeta de los módulos compartidos al camino de búsqueda, porque este script vive dos niveles más abajo de la raíz y Python no la encuentra sola.
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "src", "comun"))
+sys.path.insert(0, os.path.join(os.path.dirname(
+    os.path.abspath(__file__)), "..", "..", "src", "comun"))
 
-import config
-import fuentes
-from evidencia import imprimir_header, iniciar_log
 
 # Cuánto se espera sin recibir nada antes de dar por terminada la lectura.
 
@@ -102,15 +103,17 @@ def _hash_estable(eventos):
     Cada evento se reduce a sus campos estables y se ordena por número de evento, que es el orden en que salió.
 
     El texto se arma sin espacios de sobra para que dos maneras de escribir lo mismo no den dos hashes distintos."""
-    recortados = [{campo: evento.get(campo) for campo in CAMPOS_ESTABLES} for evento in eventos]
+    recortados = [
+        {campo: evento.get(campo) for campo in CAMPOS_ESTABLES} for evento in eventos]
     recortados.sort(key=lambda e: e.get("evento_id") or 0)
 
-    texto = json.dumps(recortados, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    texto = json.dumps(recortados, sort_keys=True,
+                       ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(texto.encode("utf-8")).hexdigest()
 
 
 def _recuento(eventos):
-    """Separa los eventos en alertas, conteo por ciudad y rango de horas, sin imprimir nada."""
+    # Separa los eventos en alertas, conteo por ciudad y rango de horas, sin imprimir nada.
     alertas = [e for e in eventos if e.get("supera_umbral")]
     por_ciudad = {}
     horas = [e["hora_lectura"] for e in eventos if e.get("hora_lectura")]
@@ -123,13 +126,14 @@ def _recuento(eventos):
 
 
 def _resumen(eventos):
-    """Imprime el recuento de la corrida: mensajes, alertas, ciudades y rango de horas."""
+    # Imprime el recuento de la corrida: mensajes, alertas, ciudades y rango de horas.
     alertas, por_ciudad, horas = _recuento(eventos)
 
     print(f"Recibidos   {len(eventos)}", flush=True)
     print(f"Alertas     {len(alertas)}", flush=True)
 
-    detalle = ", ".join(f"{clave}={por_ciudad[clave]}" for clave in sorted(por_ciudad))
+    detalle = ", ".join(
+        f"{clave}={por_ciudad[clave]}" for clave in sorted(por_ciudad))
     print(f"Ciudades    {detalle}", flush=True)
 
     if horas:
@@ -142,7 +146,8 @@ def _cierre(hash_estable):
     print("", flush=True)
     print(f"SHA-256 estable  {hash_estable}", flush=True)
     print(f"Campos            {', '.join(CAMPOS_ESTABLES)}", flush=True)
-    print(f"Fecha corrida     {datetime.now(timezone.utc).isoformat(timespec='seconds')}", flush=True)
+    print(
+        f"Fecha corrida     {datetime.now(timezone.utc).isoformat(timespec='seconds')}", flush=True)
 
 
 def main():
@@ -164,7 +169,8 @@ def main():
 
     faltantes = _eventos_incompletos(eventos)
     if faltantes:
-        print(f"Faltan campos en los eventos  {', '.join(faltantes)}", flush=True)
+        print(
+            f"Faltan campos en los eventos  {', '.join(faltantes)}", flush=True)
         return 1
 
     print("", flush=True)
