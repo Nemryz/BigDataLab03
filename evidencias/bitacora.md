@@ -176,6 +176,24 @@ No se debe correr 05_resumen_velocidad.py con los avisos convertidos en error, P
 
 No se debe borrar la carpeta checkpoints/velocidad a mano mientras la corrida sigue corriendo, la limpieza se hace con el --limpiar apagado el streaming.
 
+## Correr la capa de lotes
+
+Se corre después de la capa de velocidad y con el broker arriba, porque lee el topic de Kafka completo de una sola vez.
+
+```powershell
+& .venv\Scripts\python.exe lambda\03-lotes\06_lotes.py
+```
+
+No necesita ningún interruptor de limpieza, es una corrida batch desde el primer offset hasta el último que se sobrescribe sobre la anterior, y al terminar mata sus propios procesos de Spark.
+
+Debe imprimir `Topic leido 672 eventos`, después las rutas de Parquet y CSV de las dos vistas y después `Eventos 672`, `Diario 28 filas` y `Ciudades 4 filas`.
+
+El renglón de cruce debe decir `Horas umbral 128  igual que las alertas`, porque las 128 horas contaminadas que suman las vistas son las mismas 128 alertas que contó la capa de velocidad, contadas por caminos distintos, una desde los mensajes y otra desde las vistas.
+
+Los SHA-256 de la corrida de referencia son c3b1ba75a99b57feede7a328b45fc4150202e3ad6f150a32295d9f55f3e1fd1f para la vista diaria y bae6d8817f0e68b6e5866ce5cb993bb69aefd7694eb6c5a61e8ffac54617e870 para la de ciudades, y deben salir iguales todas las veces que se lea el mismo topic.
+
+Los archivos quedan en lambda/salidas/lotes con diario.csv, ciudades.csv y la carpeta parquet, y el gráfico en evidencias/graficos/lotes_diario.png.
+
 ## Los logs
 
 Cada comando escribe su propia salida en evidencias/logs y el nombre del archivo indica qué lo produjo.
@@ -216,6 +234,10 @@ No se debe convertir todos los avisos en error en los scripts que pasan un DataF
 
 No se debe dejar el Parquet de la capa de velocidad sin su CSV al lado, el Parquet guarda episodios repetidos a propósito y el CSV es el que tiene una fila por episodio.
 
+No se debe correr 06_lotes.py antes de que el productor termine de mandar la semana, las vistas se calculan sobre lo que haya en el topic en ese instante y a mitad de producción sale una semana incompleta con todos los hashes cambiados.
+
+No se debe correr 06_lotes.py con los avisos convertidos en error, como el 05 pasa un DataFrame a pandas para escribir el CSV y se cae con el aviso de desuso de pandas sin que haya nada malo.
+
 ## Errores típicos y qué hacer
 
 Si el productor dice que el broker no está corriendo, se enciende con start_kafka.ps1 y se vuelve a probar.
@@ -241,3 +263,9 @@ Si al terminar Spark aparece ERROR ShutdownHookManager sobre una carpeta tempora
 Si 05_resumen_velocidad.py dice que no existe el Parquet, es porque 04_velocidad.py no corrió o porque un --limpiar posterior lo borró.
 
 Si el CSV sale con menos episodios de los esperados, se compara contra el recuento de episodios del 04, porque los dos cuentan por ciudad y hora de inicio y deberían dar el mismo número.
+
+Si 06_lotes.py dice `El topic esta vacio, corre primero 02_productor.py`, el productor no corrió o alguien limpió el topic después de él, se repite la secuencia completa desde el productor con --limpiar.
+
+Si la sesión de Spark no arranca o se queda colgado en el arranque, la máquina quedó sin memoria libre después de varias corridas seguidas y la JVM queda a medias, se espera a que se libere memoria y se reintenta sin cambiar nada, la corrida sale igual.
+
+Si el renglón de cruce no da 128, el topic se leyó a mitad de la producción o se modificó entre corridas, se vuelve a la secuencia completa desde el productor con --limpiar antes de desconfiar de las vistas.

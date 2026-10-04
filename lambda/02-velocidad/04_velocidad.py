@@ -48,11 +48,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import config
 from evidencia import imprimir_header, iniciar_log
+from eventos import parsear
 from fuentes import CONTAMINANTES
 from spark_session import get_spark
 
 from pyspark.sql import functions as F
-from pyspark.sql.types import BooleanType, DoubleType, LongType, StringType, StructField, StructType
 
 # Donde quedan las sesiones que va escribiendo cada lote.
 SALIDA_PARQUET = config.SALIDAS / "velocidad" / "parquet"
@@ -67,31 +67,10 @@ ESPACIO_SESION = "2 hours"
 MARCA_AGUA = "4 hours"
 
 
-def _esquema_evento():
-    """Devuelve el esquema con el que se desarma el JSON que manda el productor.
-
-    Se declara campo por campo y no se deduce del primer lote, porque la deducción depende de lo que haya en el topic en ese instante y un lote temprano podría venir sin contaminantes.
-
-    Los nombres de los contaminantes salen de la misma lista que arma el productor, de modo que el día que cambie el contrato del evento esta capa se entera sola."""
-    contaminantes = [StructField(nombre, DoubleType()) for nombre in CONTAMINANTES]
-    return StructType([
-        StructField("ciudad", StringType()),
-        StructField("ciudad_nombre", StringType()),
-        StructField("hora_lectura", StringType()),
-        *contaminantes,
-        StructField("umbral", DoubleType()),
-        StructField("supera_umbral", BooleanType()),
-        StructField("evento_id", LongType()),
-        StructField("emitido_utc", StringType()),
-        StructField("broker", StringType()),
-        StructField("topic", StringType()),
-    ])
-
-
 def _armar_flujo(spark, topic):
     """Devuelve el flujo de episodios que se lee del topic, armado pero todavía sin correr.
 
-    La hora de lectura viene como texto porque ese es el formato en que la trae la foto, y se castea a timestamp ahí mismo porque la marca de agua y la ventana de sesión solo trabajan con fechas de verdad.
+    El esquema del mensaje y el casteo de la hora viven en el módulo eventos, que esta capa comparte con la de lotes, así que acá solo queda filtrar lo que le interesa a la velocidad.
 
     El filtro de la hora nula es una red de seguridad, un mensaje con la hora rota no armaría una sesión sino que la envenenaría.
 
@@ -106,12 +85,7 @@ def _armar_flujo(spark, topic):
         .load()
     )
 
-    eventos = (
-        crudo.select(F.from_json(F.col("value").cast("string"), _esquema_evento()).alias("evento"))
-        .select("evento.*")
-        .withColumn("hora_lectura", F.col("hora_lectura").cast("timestamp"))
-        .filter(F.col("supera_umbral") & F.col("hora_lectura").isNotNull())
-    )
+    eventos = parsear(crudo).filter(F.col("supera_umbral") & F.col("hora_lectura").isNotNull())
 
     agrupado = (
         eventos.withWatermark("hora_lectura", MARCA_AGUA)

@@ -14,8 +14,11 @@ Este documento describe lo que ya está construido y lo que falta, con los coman
 | 1 | Biblioteca compartida, configuración y prueba de humo | hecha |
 | 2.1 | Descarga de la foto, productor de Kafka y verificación | hecha |
 | 2.2 | Capa de velocidad con Spark Structured Streaming | hecha |
-| 2.3 | Capa de lotes con Spark batch | pendiente |
+| 2.3 | Capa de lotes con Spark batch | hecha |
 | 2.4 | Servicio de consulta sobre SQLite | pendiente |
+| 2.5 | Docker | pendiente |
+| 2.6 | Verificación Docker | pendiente |
+| 2.7 | Documentación final | pendiente |
 | 3 | Informe, tabla comparativa y presentación | pendiente |
 
 ## Arquitectura
@@ -43,8 +46,9 @@ El orden de carpetas está pensado para lo que se va a crear después.
 | src/comun | Configuración, sesión de Spark, evidencia, catálogo de fuentes | 1 |
 | lambda/01-ingesta | Descarga, productor y verificador | 2.1 |
 | lambda/02-velocidad | Streaming de Spark | 2.2 |
-| lambda/03-lotes | Consultas batch de Spark | 2.3 |
+| lambda/03-lotes | Lectura batch del topic y vistas consolidadas | 2.3 |
 | lambda/04-servicio | Servicio de consulta | 2.4 |
+| docker | Composición de contenedores para levantar el laboratorio en otra máquina | 2.5 |
 | lambda/salidas | Resultados pesados de cada fase | 2.x |
 | evidencias | Logs, capturas de entorno, gráficos y pantallazos | todas |
 | docs | Informe técnico, tabla comparativa y guion | 3 |
@@ -136,6 +140,7 @@ scripts\start_kafka.ps1
 & .venv\Scripts\python.exe lambda\01-ingesta\03_verificar.py
 & .venv\Scripts\python.exe lambda\02-velocidad\04_velocidad.py --limpiar
 & .venv\Scripts\python.exe lambda\02-velocidad\05_resumen_velocidad.py
+& .venv\Scripts\python.exe lambda\03-lotes\06_lotes.py
 scripts\stop_kafka.ps1
 ```
 
@@ -262,6 +267,40 @@ La semana completa deja 128 horas sobre el umbral agrupadas en siete episodios, 
 
 Mendoza y Puerto Montt no pasaron el umbral ninguna hora de esa semana, así que no aparecen en el gráfico, y eso también es un resultado y no un fallo del proceso.
 
+## La capa de lotes
+
+La capa de lotes es el camino lento de la arquitectura Lambda, el que lee el topic entero de una sola vez y lo deja consolidado en dos vistas.
+
+Mientras la capa de velocidad responde apenas aparece el mensaje, esta espera a que la cola esté completa, recorre el topic de punta a punta y devuelve el panorama de la semana entera.
+
+La lectura se hace como una corrida batch, desde el primer offset hasta el último, así que no hay checkpoint ni estado que conservar y cada ejecución se pisa a la anterior con el modo sobrescribir, sin ningún interruptor de limpieza.
+
+A diferencia de la capa de velocidad acá no se prefiltra nada, entran las lecturas contaminadas y las limpias juntas, porque el porcentaje de cada grupo se calcula sobre el total.
+
+Salen dos vistas escritas en Parquet y en CSV dentro de lambda/salidas/lotes.
+
+La diaria cruza ciudad con día y trae las lecturas del día, las horas que superaron el umbral, el porcentaje que representan y los promedios y picos de cada contaminante.
+
+La por ciudad aplana la semana en una sola fila por lugar, que es la vista con la que se compara qué tan distinto le fue a cada ciudad.
+
+Los promedios se redondean a dos decimales dentro de la propia consulta y no al escribir, porque el número que entra al hash tiene que ser idéntico en cualquier máquina.
+
+Cada vista se cierra con su propio SHA-256 sobre los campos estables, con el mismo criterio que las otras capas, y la suma de horas sobre umbral de la vista por ciudad se imprime junto con las alertas del topic.
+
+En la corrida de referencia las dos cuentas dan 128, o sea las mismas 128 horas contaminadas contadas por caminos distintos, uno desde los mensajes y otro desde las vistas, y esa coincidencia es la que prueba que las dos ramas de la arquitectura ven el mismo dato.
+
+El gráfico de evidencias/graficos/lotes_diario.png muestra el promedio diario de pm2.5 de cada ciudad, una línea por lugar sobre los siete días.
+
+Para correrla, con el broker arriba y el productor ya ejecutado:
+
+```powershell
+& .venv\Scripts\python.exe lambda\03-lotes\06_lotes.py
+```
+
+La corrida de referencia deja 28 filas en la vista diaria, cuatro ciudades por siete días, y cuatro filas en la por ciudad.
+
+Dos corridas que leyeron el mismo topic dan los mismos dos hashes, que es la manera de probar que la capa de lotes es reproducible.
+
 ## Cómo se registran las corridas
 
 Cada script abre su propio log en evidencias/logs apenas arranca y a partir de ahí espeja en él todo lo que se imprime.
@@ -339,3 +378,4 @@ Esto se documenta a propósito, porque es lo que vale el criterio de resolución
 | Update output mode not supported for session window | la ventana de sesión depende de la marca de agua y ese modo no sabe cuándo cerrar la fila | usar el modo completo y deduplicar en el resumen |
 | ERROR ShutdownHookManager al cerrar Spark | Windows no puede borrar la carpeta temporal mientras la JVM todavía tiene los jars abiertos | es ruido del cierre, el resumen ya se escribió antes de que aparezca |
 | Aviso de desuso por is_datetime64tz_dtype | PySpark llama al método que pandas avisó que va a quitar al pasar un DataFrame a pandas | no convertir los avisos en error en el script que usa toPandas |
+| La sesión de Spark no arranca o se queda colgado en el arranque | la máquina quedó sin memoria libre después de varias corridas seguidas y la JVM queda a medias | esperar a que se libere memoria, cerrar lo que esté pesando y reintentar, la corrida sale igual |
