@@ -28,17 +28,25 @@ Engel Falcon
 
 4. Materiales y entorno
 
-5. Diseño del pipeline
+5. Herramientas: qué son y cómo se usa cada una
 
-6. Ejecución paso a paso
+6. Diseño del pipeline
 
-7. Resultados
+7. Ejecución paso a paso
 
-8. Resolución de problemas y tips
+8. Resultados
 
-9. Conclusiones
+9. Resolución de problemas y tips
 
-10. Anexo de evidencias
+10. Cronología de avances
+
+11. Reproducibilidad
+
+12. Conclusiones
+
+Anexo A. Glosario de términos
+
+Anexo B. Evidencias
 
 ---
 
@@ -125,7 +133,171 @@ El único script autorizado a tocar la red es `01_descargar.py`, que baja la fot
 
 El arranque desde cero se hace con scripts\bootstrap.ps1, un script idempotente de cinco pasos que instala Java 17, crea la venv, instala las librerías, prepara winutils, baja Kafka si hace falta y termina con la prueba de humo, así que se puede lanzar las veces que haga falta sin romper nada.
 
-## 5. Diseño del pipeline
+## 5. Herramientas: qué son y cómo se usa cada una
+
+Esta sección explica cada herramienta del proyecto en el mismo orden, qué es, cómo funciona dentro de este laboratorio, con qué comandos se usa y qué fragmentos del código la manejan.
+
+### Apache Kafka
+
+Kafka es una plataforma de eventos distribuida donde los productores publican mensajes en tópicos y los consumidores los leen, y el broker es el servidor que recibe, guarda y reparte esos mensajes en particiones.
+
+Acá corre un broker local en el puerto 9092 con un heap de 256 megabytes y sin ZooKeeper, porque desde Kafka 4.0 el modo ZooKeeper fue eliminado y el broker se gobierna a sí mismo en modo KRaft.
+
+El dato entra por un solo topic, lab03.eventos, la clave de cada mensaje es la ciudad para que las lecturas de un mismo lugar queden juntas en la misma partición, y la confirmación de escritura es acks=1, que es el punto medio entre la velocidad y la garantía.
+
+```powershell
+& scripts\start_kafka.ps1
+& .venv\Scripts\python.exe lambda\01-ingesta\06_productor.py --lista --mensajes 8
+& .venv\Scripts\python.exe lambda\01-ingesta\03_verificar.py
+& scripts\stop_kafka.ps1
+```
+
+El arranque espera la línea exacta que dice que el servidor terminó de encender y responde con 'El broker arranco bien' y 'puerto 9092 responde True', y el verificador se puede correr las veces que quiera porque lee el tema desde el principio y sin grupo de consumo.
+
+El productor se abre en `02_productor.py:314` con la confirma y los serializadores que trae la librería, y manda cada evento con su hora de emisión recién anotada en el momento exacto de la salida.
+
+```python
+return KafkaProducer(
+    bootstrap_servers=config.KAFKA_BROKER,
+    acks=1,
+    linger_ms=0,
+    value_serializer=JsonSerializer(),
+    key_serializer=DefaultSerializer(),
+)
+...
+futuro = productor.send(
+    args.topic, key=evento["ciudad"], value=evento)
+futuro.get(timeout=30)
+```
+
+El `send` devuelve un futuro y el `get(timeout=30)` espera la confirmación antes de contar el mensaje como enviado, así que los 672 enviados y 0 fallidos del resumen son confirmaciones reales y no intenciones.
+
+### Apache Spark y PySpark
+
+Spark es un motor unificado de procesamiento que sirve igual para lotes y para flujos, y PySpark es su API de Python, donde la misma consulta se escribe sobre una tabla estática o sobre una columna de eventos que se amplía sin parar.
+
+En este proyecto la sesión de Spark corre en local con dos hilos y con la memoria acotada a 2 GB de driver y 512 particiones de mezcla, que es lo mínimo que permite, porque el dispositivo de referencia tiene poca memoria.
+
+El mismo topic se lee de dos maneras distintas, en lote se recorre completo de una vez con `spark.read`, y en streaming se suscribe con `readStream` tomando como máximo cien mensajes por lote, con marca de agua de cuatro horas y ventana de sesión de dos horas.
+
+```python
+# lote, 06_lotes.py:85
+spark.read.format("kafka")
+.option("startingOffsets", "earliest")
+.option("endingOffsets", "latest")
+.load()
+
+# streaming, 04_velocidad.py:79
+spark.readStream.format("kafka")
+.option("startingOffsets", "earliest")
+.option("maxOffsetsPerTrigger", config.MAX_OFFSETS_POR_LOTE)
+.load()
+
+eventos.withWatermark("hora_lectura", MARCA_AGUA)
+.groupBy(F.col("ciudad"),
+         F.session_window("hora_lectura", ESPACIO_SESION))
+.agg(F.count(F.lit(1)).alias("lecturas"), ...)
+```
+
+El streaming cierra con el disparador availableNow, que procesa todo lo disponible al arrancar y termina solo, y el lote no lleva disparador porque recorre el tema entero en una sola corrida batch.
+
+```powershell
+& .venv\Scripts\python.exe lambda\02-velocidad\04_velocidad.py --limpiar
+& .venv\Scripts\python.exe lambda\03-lotes\06_lotes.py
+```
+
+### Python y la venv
+
+Python es el lenguaje del laboratorio y la venv es una carpeta con su propio intérprete y sus propias librerías dentro del repositorio, de modo que el proyecto no depende de lo que tenga instalado la máquina.
+
+La versión fija es 3.12.10 con las librerías pineadas en requirements.txt, y la instalación siempre se hace con la ruta absoluta del intérprete de la venv, porque en la pc de referencia el pip del PATH pertenece a otro Python.
+
+```powershell
+& .venv\Scripts\python.exe --version
+& .venv\Scripts\python.exe -m pip install -r requirements.txt
+& .venv\Scripts\python.exe -W error -m py_compile lambda\01-ingesta\01_descargar.py
+& .venv\Scripts\python.exe src\comun\smoke_test.py
+```
+
+La compilación con `-W error` convierte cualquier aviso en error para que una deprecación no pase desapercibida, y la prueba de humo cierra con siete de siete pruebas y la línea SMOKE TEST: OK.
+
+Además cada script imprime al empezar un encabezado de trazabilidad con el momento en UTC, el commit, el comando exacto y las versiones, generado por `evidencia.py:115`, así que un log suelto se explica sin párrafo al lado.
+
+### SQLite
+
+SQLite es una base de datos completa que vive en un solo archivo y viene con Python de fábrica, no pide servidor ni instalación aparte y la base entera viaja junto con el código.
+
+Acá se usa en la capa de servicio como punto único de consulta, en el archivo aire.db que se borra y se rehace en cada corrida para que nunca se mezclen corridas viejas con corridas nuevas.
+
+```powershell
+& .venv\Scripts\python.exe lambda\04-servicio\07_servicio.py
+
+```python
+# 07_servicio.py:131 y 156
+campos = ", ".join(f"{columna} {tipo}"
+                   for columna, tipo in columnas.items())
+con.execute(f"CREATE TABLE IF NOT EXISTS {nombre} ({campos})")
+
+insertar = f"INSERT INTO {nombre} ({', '.join(columnas)}) " \
+           f"VALUES ({', '.join('?' for _ in columnas)})"
+```
+
+Las tablas se declaran con sus tipos antes de cargar, y si el encabezado de un CSV no coincide con lo declarado la corrida se corta en lugar de meter números viejos en silencio, y sobre esas tablas corre el left join del cruce que junta horas del batch con lecturas de episodios.
+
+### Docker (opcional)
+
+Docker empaqueta servicios en contenedores reproducibles, y en este laboratorio se usa solo como alternativa para levantar el mismo broker de Kafka sin instalarlo a mano.
+
+La composición es mínima, un solo servicio con la imagen oficial de Apache, el puerto 9092 publicado y un volumen nombrado para los datos, y como la máquina de referencia no trae Docker el archivo se valida de forma estática con PyYAML.
+
+```yaml
+services:
+  kafka:
+    image: apache/kafka:4.1.2
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+```
+
+```powershell
+& .venv\Scripts\python.exe docker\verificar_compose.py
+cd docker
+docker compose up -d
+docker compose ps
+docker compose down
+```
+
+El verificador pasa trece comprobaciones con nombre propio, desde la imagen hasta el healthcheck, y dice 'La composición está lista para una máquina con Docker' cuando no falta nada.
+
+### git
+
+git es el sistema de control de versiones que guarda el historial del proyecto en commits, y aquí cumple dos trabajos, trazar qué código produjo cada log y servir de evidencia de los avances.
+
+El encabezado de cada script no imprime el último commit que tocó ese archivo sino el HEAD del repositorio entero en ese momento, porque el log lo produce todo el código junto, incluidos los módulos compartidos.
+
+```powershell
+git log --oneline
+git status --short
+git rev-parse --short HEAD
+```
+
+```python
+# src/comun/evidencia.py:84
+salida = subprocess.check_output(
+    ["git", "rev-parse", "--short", "HEAD"],
+    stderr=subprocess.DEVNULL,
+    text=True,
+    cwd=carpeta,
+)
+```
+
+El `cwd` se le pasa explícito a la raíz del repositorio para que el dato no se pierda si alguien corre el script desde otra carpeta, y si git no está disponible el encabezado imprime sin-repositorio en lugar de cortar la corrida.
+
+---
+
+## 6. Diseño del pipeline
 
 El flujo completo se ve así, desde la foto de los datos hasta la consulta final:
 
@@ -155,7 +327,7 @@ El cruce pone en la misma fila las horas contaminadas que cuenta el batch y las 
 
 Ese cruce es la comprobación final de la arquitectura, si las dos columnas cuadran las dos ramas procesaron exactamente lo mismo y la capa de servicio puede responder sin favoritos.
 
-## 6. Ejecución paso a paso
+## 7. Ejecución paso a paso
 
 La secuencia completa sin saltos es descarga, productor con limpiar, verificador, streaming con limpiar, resumen, lotes, servicio y parada del broker, y se corrió el 2026-10-04 sobre el commit fd206d7 de una sola rama.
 
@@ -195,8 +367,8 @@ Topic creado  lab03.eventos
 Enviados   672
 Fallidos   0
 Alertas    111
-Duracion   16.3 s
-Ritmo      41.22 msg/s
+Duracion   15.2 s
+Ritmo      44.34 msg/s
 ```
 
 El interruptor limpiar detiene el broker, borra la carpeta de datos, formatea el almacenamiento con un identificador de clúster nuevo y vuelve a arrancar, y eso es lo que hace que una corrida sea comparable con la anterior.
@@ -291,7 +463,7 @@ El broker se detuvo, el puerto 9092 quedo libre
 
 Cada comando escribe su propia bitácora en evidencias/logs y las salidas completas de todos los pasos quedan en evidencias/bitacora.md.
 
-## 7. Resultados
+## 8. Resultados
 
 La corrida de referencia cerró todas sus comprobaciones el 2026-10-04.
 
@@ -335,7 +507,7 @@ Los SHA-256 de la corrida de referencia quedan como firma de la reproducibilidad
 | Vista diaria | af4ae41968a401c4c493d96e9654c170526cf2d85b37a18642435e8dcc2a9063 |
 | Vista de ciudades | a9d4aad45505871435811536de5fe7bef23a54b7ab0f11cefe8988e2a6662f65 |
 
-## 8. Resolución de problemas y tips
+## 9. Resolución de problemas y tips
 
 1. El pip del PATH pertenece a un 3.13 mientras que python abre el 3.12, así que los paquetes se instalan siempre con la ruta absoluta de la venv, `& .venv\Scripts\python.exe -m pip install -r requirements.txt`, y nunca con el pip suelto.
 
@@ -367,7 +539,75 @@ Los SHA-256 de la corrida de referencia quedan como firma de la reproducibilidad
 
 15. Si algo falla y no se sabe dónde, se empieza por la prueba de humo, porque ordena las comprobaciones de menor a mayor dificultad y marca en qué punto se rompió.
 
-## 9. Conclusiones
+## 10. Cronología de avances
+
+El avance del laboratorio se puede leer directo del historial de commits, cada fase deja el suyo y no hay fases sin código.
+
+| Fecha | Avance | Commits |
+| ----- | ------ | ------- |
+| 28-09 | Estructura inicial del repositorio, módulos compartidos, versiones fijadas, JAVA_HOME y prueba de humo | bd38b5e, 41b684b, b0b7823 |
+| 29-09 | Bootstrap idempotente, captura de entorno y descarga de la foto con manifiesto | cdf7e5e, 95a4704 |
+| 03-10 | Conector y módulos de Kafka, productor con limpieza y capa de velocidad con ventana de sesión | a4e5bd9, 508b153, 38e4277 |
+| 04-10 madrugada | Capa de lotes con Spark y capa de servicio sobre SQLite con el cruce | ff4ab02, 7590b29 |
+| 04-10 | Composición de Docker en KRaft y su verificador estático | 96d0d22, fd206d7 |
+| 04-10 | Corrida completa de punta a punta, bitácora en formato de pasos y este informe | f094458, 3af9123, 44dc814, 9f04ab5 |
+
+De la primera estructura a la corrida completa pasaron seis días, y la etapa decisiva fue la madrugada del 04-10, donde las tres capas quedaron conectadas y verificadas en menos de una hora.
+
+## 11. Reproducibilidad
+
+La reproducibilidad de este laboratorio se apoya en tres anclas, una foto fija de los datos con su hash, versiones de software pineadas y una corrida de referencia cuyos resultados se pueden comparar contra los tuyos.
+
+### Firma de la corrida de referencia
+
+Si otra máquina repite la receta sobre la misma foto, estos son los valores que debe producir, y cualquier diferencia señala dónde se desvió.
+
+| Dato | Valor de referencia |
+| ---- | ------------------- |
+| SHA-256 de la foto | e117f7b8a3170ea119ba4367ec4aa6a295d943fc7e1c0e0e5f598857d82639f3 |
+| SHA-256 de la ingesta estable | 6fa4f1f40f34cf26e0b1cda55b06c8f4d2521087bc9e9bf52c3d6395fb07dd9b |
+| SHA-256 de episodios | befb30473fcb54e617c392857566ecbc6e506c3d5663c90fc36df577c53e1bf6 |
+| SHA-256 de la vista diaria | af4ae41968a401c4c493d96e9654c170526cf2d85b37a18642435e8dcc2a9063 |
+| SHA-256 de la vista de ciudades | a9d4aad45505871435811536de5fe7bef23a54b7ab0f11cefe8988e2a6662f65 |
+| Eventos publicados y fallidos | 672 enviados, 0 fallidos |
+| Alertas en el tema y horas sobre umbral | 111 iguales en las tres capas |
+| Episodios, filas diarias y ciudades | 6, 28 y 4 |
+| Cruce de la capa de servicio | 111 contra 111, coinciden |
+| Tamaño de la foto y del manifiesto | 47 822 bytes y 814 bytes |
+| Tamaño de diario.csv y aire.db | 2 180 bytes y 16 384 bytes |
+| Duración del productor | 15.2 segundos a 44.34 msg/s |
+| Corrida completa | de 04:03:32 a 04:07:44 UTC, unos 4 minutos |
+| Prueba de humo y verificador del compose | 7 de 7 y 13 de 13 |
+| Versiones | Python 3.12.10, PySpark 3.5.9, Java 17.0.20.1, Kafka 4.1.2 |
+| Commit de los logs de la corrida | fd206d7 |
+
+### Las cuatro garantías
+
+1. La foto de los datos se descarga una sola vez y queda en disco con manifiesto y SHA-256, y después todo el pipeline lee del disco, así que el día de la defensa no depende de internet.
+
+2. Las versiones están pineadas en requirements.txt y las fija el bootstrap, así que otra máquina instala exactamente las mismas librerías sin adivinar.
+
+3. El bootstrap es idempotente y termina con la prueba de humo, así que un arranque en limpio se sabe correcto o incorrecto en el mismo momento.
+
+4. Cada log imprime el commit del repositorio en ese instante, de modo que siempre se sabe con qué versión del código se produjo cada resultado.
+
+### Receta para repetir la corrida en otra máquina
+
+1. Clonar el repositorio y correr `& scripts\bootstrap.ps1`, que instala todo y cierra con la prueba de humo, debe dar 7 de 7.
+
+2. Levantar el broker con `& scripts\start_kafka.ps1` y confirmar la línea que dice que el puerto 9092 responde True.
+
+3. Correr la secuencia sin saltos, `01_descargar.py aire_horario`, `02_productor.py --mensajes 672 --segundos 0.02 --limpiar`, `03_verificar.py`, `04_velocidad.py --limpiar`, `05_resumen_velocidad.py`, `06_lotes.py` y `07_servicio.py`.
+
+4. Comparar el resumen contra la tabla de firma, los conteos deben ser 672, 111, 6, 28 y 4, y los cinco SHA-256 deben coincidir carácter por carácter.
+
+5. Detener el broker con `& scripts\stop_kafka.ps1` y anotar en los logs el commit que imprimió cada encabezado.
+
+Si los hashes coinciden el pipeline es reproducible, y si no coinciden se empieza por comparar el commit de los logs para saber si cambió el código o cambiaron los datos.
+
+---
+
+## 12. Conclusiones
 
 El laboratorio cerró con un pipeline Lambda funcional de punta a punta, desde la foto de los datos hasta la consulta final, y todas sus comprobaciones dieron el valor esperado.
 
@@ -382,3 +622,83 @@ El Docker opcional quedó validado de forma estática con trece comprobaciones s
 Los límites también quedaron escritos, un dispositivo con poca memoria obligó a un driver de Spark de 2 GB y carpetas de mezcla de 512 MB, el contenedor no corrió en vivo, y la foto de una semana es un tamaño que no pone a prueba la arquitectura a escala.
 
 Aun con esos límites, el objetivo se cumplió, la misma pregunta de calidad del aire se respondió por dos caminos distintos y los dos llegaron al mismo número, que es exactamente lo que una arquitectura Lambda promete.
+
+---
+
+## Anexo A. Glosario de términos
+
+**acks** — confirmación de escritura que pide el productor al broker, acá vale 1, o sea que basta con que el broker escriba en su propio log.
+
+**Batch** — procesamiento diferido que recorre el histórico completo de una sola vez, es el camino de la capa de lotes.
+
+**Broker** — servidor de Kafka que recibe, guarda y reparte los mensajes, acá corre en local en el puerto 9092.
+
+**Capa de lotes** — camino lento de la arquitectura Lambda, lee el tema completo y deja las vistas consolidadas.
+
+**Capa de servicio** — camino final que consulta las dos capas anteriores en SQLite y las cruza para responder.
+
+**Capa de velocidad** — camino rápido de la arquitectura Lambda, procesa los eventos apenas llegan con Spark Structured Streaming.
+
+**Checkpoint** — carpeta donde Spark guarda hasta dónde leyó, si se reenvía el tema hay que borrarlo con `--limpiar` para que no se crea que ya lo procesó.
+
+**Commit** — versión guardada del código en git, cada log imprime el HEAD del repositorio en el momento de la corrida.
+
+**Consumidor** — quien lee los mensajes de un topic, el verificador de la ingesta lee sin grupo de consumo para poder correr las veces que haga falta.
+
+**Cruce** — consulta final de la capa de servicio que pone horas del batch y lecturas de episodios en la misma fila y compara los totales.
+
+**Disparador (trigger)** — regla que le dice a Spark cuándo lanzar lotes, acá se usa availableNow, que procesa todo lo disponible y termina solo.
+
+**Episodio** — racha de lecturas contaminadas seguidas separadas de la siguiente por un hueco mayor al espacio de sesión. Es decir, un episodio es una sesión que cerró y que tuvo al menos una hora sobre el umbral de 25 ug/m3.
+
+**Foto de datos** — descarga única de la semana de datos a un archivo en disco, es la fuente de verdad de todo el pipeline.
+
+**Hash / SHA-256** — huella digital de un archivo o de un conjunto de campos, dos corridas sobre los mismos datos deben producir los mismos hashes.
+
+**Kafka** — plataforma de eventos donde los productores publican en tópicos y los consumidores los leen, acá versión 4.1.2.
+
+**KRaft** — modo de gobierno propio de Kafka sin ZooKeeper, desde la versión 4.0 es el único modo que existe.
+
+**Manifiesto** — archivo JSON que acompaña a la foto con la dirección usada, la fecha de descarga y el hash del contenido.
+
+**Marca de agua (watermark)** — cota de retraso que le permite a Spark olvidar el estado de las sesiones que ya no van a crecer más, acá va en cuatro horas.
+
+**Modo completo** — modo de salida del streaming que reescribe todas las sesiones vivas en cada lote, es el que va en la capa de velocidad.
+
+**Offset** — contador de posición dentro de una partición del topic, los consumidores arrancan desde el primero con startingOffsets earliest.
+
+**Parquet** — formato de archivo columnar que Spark relee sin parsear, es donde quedan las vistas de velocidad y de lotes.
+
+**Partición** — trozo paralelo de un topic, la clave de cada mensaje es la ciudad para que las lecturas de un mismo lugar caigan siempre en la misma.
+
+**Productor** — quien escribe los mensajes en el topic, acá es un script de Python con la librería kafka-python.
+
+**PySpark** — API de Python de Spark, con ella se escriben tanto las consultas batch como las de streaming.
+
+**Spark** — motor unificado de procesamiento que sirve para lotes y para flujos, acá versión 3.5.9 corriendo en local.
+
+**SQLite** — base de datos completa que vive en un solo archivo y viene con Python, acá guarda el archivo aire.db de la capa de servicio.
+
+**Streaming** — procesamiento continuo de los eventos a medida que llegan, es el trabajo de la capa de velocidad.
+
+**Topic** — canal donde Kafka guarda los mensajes, en este laboratorio todo pasa por el topic lab03.eventos.
+
+**Umbral** — valor de 25 ug/m3 sobre el cual una hora se considera contaminada, viene del límite diario de la Organización Mundial de la Salud y viaja dentro de cada mensaje.
+
+**venv** — carpeta con el intérprete y las librerías propias del proyecto dentro del repositorio, siempre se invoca con su ruta absoluta.
+
+**Ventana de sesión** — agrupación que junta los eventos que llegan seguidos y se cierra recién cuando pasa el tiempo de separación, acá son dos horas.
+
+**winutils** — binario nativo que Windows necesita para que Spark pueda escribir archivos, su carpeta se declara con la variable de entorno HADOOP_HOME.
+
+## Anexo B. Evidencias
+
+Bitácora completa con los pasos y las salidas reales en `evidencias/bitacora.md`.
+
+Logs, uno por comando, en `evidencias/logs/`: `00_smoke_test`, `01_bootstrap`, `01_descarga`, `02_conector_kafka`, `02_productor`, `03_kafka_broker`, `03_verificacion`, `04_jars_locales`, `04_kafka_cierre`, `04_velocidad`, `05_resumen_velocidad`, `06_lotes`, `07_servicio` y `08_verificacion_compose`, todos con extensión `.log` más la bitácora de error del broker.
+
+Gráficos de las dos capas en `evidencias/graficos/`: `velocidad_episodios.png` con los episodios de la semana y `lotes_diario.png` con la vista diaria consolidada.
+
+Salidas de las capas en `lambda/salidas/`: el CSV de episodios con su Parquet, las vistas diario y ciudades en Parquet y CSV, y la base `aire.db` de la capa de servicio.
+
+Pantallazos de la corrida y del entorno en `evidencias/pantallazos/`, que se completan con las capturas de la sesión de la defensa.
