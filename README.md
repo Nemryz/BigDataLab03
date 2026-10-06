@@ -6,6 +6,42 @@ El mismo problema de fondo que el resto del curso, calidad del aire en cuatro ci
 
 Este documento describe el procedimiento hecho, con los comandos exactos para reproducirlo en otro dispositivo, y la evidencia de que el flujo completo funciona y es reproducible.
 
+## Requisitos previos 
+
+Antes de correr 'scripts\bootstrap.ps1' hay tres cosas que el instalador no puede resolver por su cuenta y que conviene tener listas, porque si faltan el script se corta con un mensaje claro pero no las instala. 
+
+| Componente | Versión | Cómo se consigue |
+| ---------- | ------- | ---------------- |
+| Git | cualquiera reciente | 'winget install Git.Git', o el instalador de git-scm.com |
+| Python | 3.12.x | 'winget install Python.Python.3.12' |
+| winget | el que trae Windows 10 22H2 o Windows 11 | viene con App Installer, si no está, se actualiza desde la Microsoft Store |
+| Espacio libre en disco | 4 GB | el JDK, la venv, Kafka y los jars del conector suman cerca de 3 GB entre instalación y caches |
+
+Git hace falta para clonar el repositorio y para que 'scripts\00_capturar_entorno.ps1' pueda anotar el commit en la huella del entorno. Si se descarga el repositorio como ZIP en vez de clonarlo, la captura de Git queda vacía pero el resto del flujo funciona igual.
+
+Python 3.12 es la versión exacta del laboratorio y la que usa la venv. El bootstrap la busca en 'C:\Users\*\AppData\Local\Programs\Python\Python312\python.exe', así que si está instalada en otra ruta hay que ajustar esa búsqueda o crear la venv a mano antes de correr el script. 
+
+Winget es lo que usa el bootstrap para instalar el Temurin 17. Si el dispositivo no lo posee, el paso 1 falla indudablemente, y en ese caso conviene instalar el JDK a mano desde adoptium.net y volver a correr el bootstrap, que respeta lo que ya esté instalado. 
+
+El espacio libre se revisa porque la primera corrida baja el JDK, crea la venv, instala PySpark con sus dependencias, baja Kafka y resuelve los jars del conector de Kafka. Si queda menos de 4 GB el bootstrap puede fallar a mitad de camino y dejar el entorno a medias.
+
+## Qué instala y qué no instala el bootstrap
+
+El bootstrap es un instalador de las dependencias del proyecto y resuelve Java 17, la venv, PySpark, winutils y Kafka. Lo que no hace, a propósito, es tocar el sistema fuera del repositorio:
+
+| Pieza | La instala el bootstrap | Notas |
+| ----- | ----------------------- | ----- |
+| Temurin JDK 17 | sí, con winget | si winget no está, hay que instalarlo a mano |
+| Python 3.12 | no | es requisito previo, se instala aparte |
+| Git | no | es requisito previo, se instala aparte |
+| winutils | sí, dentro del repositorio | no toca variables del sistema |
+| Kafka 4.1.2 | sí, dentro del repositorio | no toca variables del sistema |
+| PySpark y dependencias | sí, en la venv del repositorio | nada global |
+| Docker | no | es opcional y se usa solo para la composición |
+| SQLite | no hace falta | viene con Python |
+
+La idea es que el repositorio no deje nada instalado fuera de su carpeta, así que si se borra la carpeta el equipo queda como estaba.
+
 ## Estado del proyecto
 
 | Componente | Qué cubre |
@@ -89,6 +125,8 @@ Spark 3.5 solo acepta Java 8, 11 o 17, y la máquina trae un Java 20 de Oracle e
 
 El instalador de Temurin deja el JDK en una carpeta que lleva la versión en el nombre, y la configuración del proyecto lo busca ahí y escribe JAVA_HOME antes de que se importe PySpark.
 
+Si el dispositivo no tiene winget, el bootstrap avisa y se corta en el paso 1 sin tocar nada más. En ese caso se instala el Temurin 17 a mano desde adoptium.net, se define JAVA_HOME a la carpeta del JDK y se vuelve a correr el bootstrap, que salta ese paso porque ya lo encuentra instalado. La versión exacta usada en el laboratorio es Temurin 17.0.20.1, pero cualquier 17.x que Spark 3.5 acepte sirve.
+
 ### Paso 2, la venv y PySpark
 
 ```powershell
@@ -104,6 +142,8 @@ Es idempotente, se puede lanzar las veces que haga falta porque antes de cada pa
 Windows no trae el binario que Hadoop usa para poner permisos, y sin él la lectura funciona pero la escritura falla con un error que se hace pasar por una ruta mal escrita.
 
 La copia se hace dentro de la carpeta del proyecto, de modo que la configuración no depende de nada instalado fuera del repositorio.
+
+La carpeta del binario queda dentro del repositorio en 'winutils\bin' y la configuración del proyecto la usa desde ahí, así que no hace falta declarar HADOOP_HOME ni tocar variables del sistema. Si se prefiere declararla para otras herramientas, la ruta correcta es la carpeta 'winutils' del repositorio y no una instalación global de Hadoop, que no hace falta para nada del flujo.
 
 ### Paso 4, Apache Kafka
 
@@ -389,6 +429,26 @@ No hace falta y no corresponde.
 El scripts\lab03.bat está escrito justamente para que no haya nada que señalar, no descarga nada, no tiene código empaquetado, no usa llamadas reflejadas y nunca baja un archivo y lo ejecuta en el mismo paso.
 
 Solo mira si las piezas están y, si están, corre las que ya están escritas.
+
+## Instalar Python 3.12 y Git si no están
+
+El bootstrap no instala Python ni Git porque son requisitos previos y no dependencias del proyecto. Si la máquina no los tiene, se resuelven así antes de correr el bootstrap.
+
+Con winget, que es la vía más simple en Windows 10 y 11:
+
+```powershell
+winget install Python.Python.3.12
+winget install Git.Git
+```
+Sin winget, o si el dispositivo está bloqueada para instalar programas, se bajan los instaladores oficiales desde python.org y git-scm.com, se instalan con las opciones por defecto y se abre una consola nueva para que el PATH quede actualizado.
+
+Python 3.12 tiene que quedar en la ruta que el bootstrap espera, C:\Users\<usuario>\AppData\Local\Programs\Python\Python312\python.exe. Si se instala en otra ubicación, hay que ajustar la búsqueda dentro de scripts\bootstrap.ps1 o crear la venv a mano con:
+
+```powershell
+C:\ruta\a\python312\python.exe -m venv .venv
+```
+
+y después volver a correr el bootstrap, que salta la creación de la venv porque ya existe.
 
 ## Reproducir el entorno desde cero
 
